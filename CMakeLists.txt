@@ -15,8 +15,17 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
+# Optional VTK 3D visualization example (requires VTK 9.x)
+option(BUILD_VTK_EXAMPLE "Build VTK 3D visualization example (requires VTK 9.x)" OFF)
+if(BUILD_VTK_EXAMPLE)
+    find_package(VTK 9.0 REQUIRED)
+    message(STATUS "VTK found: ${VTK_VERSION}")
+endif()
+
 # 查找所有匹配特定模式（例如 *example*.cpp）的源文件
+# VTK example is excluded here and handled separately below
 file(GLOB MAIN_SOURCES "MotionGloveSDK_examples/src/*example*.cpp")
+list(FILTER MAIN_SOURCES EXCLUDE REGEX ".*_vtk\\.cpp$")
 
 # 提示用户输入或选择MotionGloveSDK库的根目录
 set(MotionGloveSDK_ROOT "${CMAKE_SOURCE_DIR}/MotionGloveSDK" CACHE PATH "根目录路径（包含include、lib等子目录）")
@@ -86,5 +95,39 @@ endforeach()
 if(WIN32)
 # Make VS .vcxproj.filters mirror the real directory tree from the repo root
 source_group(TREE "${CMAKE_SOURCE_DIR}" FILES     ${SRC_FILES}    )
+endif()
+
+# ── Optional VTK 3D visualization example ──────────────────────────────────
+if(BUILD_VTK_EXAMPLE)
+    set(VTK_EXAMPLE_SRC "MotionGloveSDK_examples/src/motionGloveSDK_example_vtk.cpp")
+    set(VTK_EXAMPLE_TARGET "motionGloveSDK_example_vtk")
+
+    add_executable(${VTK_EXAMPLE_TARGET} ${VTK_EXAMPLE_SRC})
+    message(STATUS "Added executable target: ${VTK_EXAMPLE_TARGET}")
+
+    target_compile_definitions(${VTK_EXAMPLE_TARGET} PRIVATE UNICODE _UNICODE)
+
+    if(MSVC)
+        target_compile_options(${VTK_EXAMPLE_TARGET} PRIVATE /utf-8 /MP /Zc:wchar_t /D_CRT_SECURE_NO_WARNINGS)
+    else()
+        target_compile_options(${VTK_EXAMPLE_TARGET} PRIVATE -finput-charset=UTF-8 -fexec-charset=UTF-8)
+    endif()
+
+    target_link_libraries(${VTK_EXAMPLE_TARGET} PRIVATE MotionGloveSDK ${VTK_LIBRARIES})
+    target_include_directories(${VTK_EXAMPLE_TARGET} PRIVATE "${MotionGloveSDK_ROOT}/include")
+
+    # VTK requires autoinit macros to wire up factory/rendering modules
+    vtk_module_autoinit(
+        TARGETS ${VTK_EXAMPLE_TARGET}
+        MODULES ${VTK_LIBRARIES}
+    )
+
+    if(WIN32)
+        add_custom_command(TARGET ${VTK_EXAMPLE_TARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:MotionGloveSDK>"
+            "$<TARGET_FILE_DIR:${VTK_EXAMPLE_TARGET}>"
+        )
+    endif()
 endif()
 

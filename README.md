@@ -35,7 +35,8 @@ MotionGloveSDK/                        # 仓库根目录
 │       ├── motionGloveSDK_example2.cpp
 │       ├── motionGloveSDK_example3.cpp
 │       ├── motionGloveSDK_example4.cpp
-│       └── motionGloveSDK_example5.cpp
+│       ├── motionGloveSDK_example5.cpp
+│       └── motionGloveSDK_example_vtk.cpp   # 可选：-DBUILD_VTK_EXAMPLE=ON
 │
 ├── out/                               # 构建输出（git 忽略）
 │   ├── build/x64-Debug/
@@ -119,6 +120,21 @@ cmake -S . -B out/build/x64-Release -DCMAKE_BUILD_TYPE=Release
 cmake --build out/build/x64-Release
 cmake --install out/build/x64-Release --prefix out/install/x64-Release
 ```
+
+### 可选：VTK 3D 可视化示例（motionGloveSDK_example_vtk）
+
+该示例会在启动时打开一个 VTK 3D 窗口，并绑定本机 UDP `5001` 端口接收手套骨骼数据（32 段）。
+
+**前置条件：**
+- 安装 VTK 9.x（推荐 9.0+）
+
+**启用构建：**
+- CMake 增加：`-DBUILD_VTK_EXAMPLE=ON`
+- 如果 CMake 找不到 VTK，请设置 `VTK_DIR` 或 `CMAKE_PREFIX_PATH` 指向 VTK 的 CMake 配置目录
+
+Windows 安装 VTK 的常见方式：
+- 使用 vcpkg 安装（需要配置 toolchain file）
+- 使用 VTK 官方预编译安装包，或自行从源码编译安装
 
 ---
 
