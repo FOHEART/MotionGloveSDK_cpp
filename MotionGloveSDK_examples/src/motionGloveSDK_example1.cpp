@@ -1,12 +1,12 @@
 /**
  * @file  motionGloveSDK_example1.cpp
- * @brief 示例 1：绑定 UDP 端口并持续接收手套数据流，打印新帧到达计数。
+ * @brief 示例 1：绑定 UDP 端口并持续接收手套数据流，按统一行首打印新帧到达。
  * @ingroup mgsdk_examples
  *
  * @details
  * 演示 SDK 最小使用闭环：ListenUDPPort -> 循环查询新帧（isGloveNewFramePending）
- * -> 取帧（GetSkeletons42Frame）-> 打印计数。默认绑定 127.0.0.1:5001，
- * 数据源由 MotionVenus 软件按转发规则推送。
+ * -> 取帧（GetSkeletons42Frame）-> 打印统一行首（帧序号 + 骨骼段数）。
+ * 默认绑定 127.0.0.1:5001，数据源由 MotionVenus 软件按转发规则推送。
  */
 #ifdef _WIN32
 #include <windows.h>
@@ -17,6 +17,7 @@
 
 #include <string>
 #include "motionGloveSDK.h"
+#include "motionGloveSDK_exampleCommon.h"
 
 /** @brief 使用说明文本：程序启动后打印到控制台，说明运行流程。 */
 static const char* HEADER_COMMENT =
@@ -70,16 +71,34 @@ int main(int argc, char* argv[])
     *
     */
 
+    /* 兼容两种数据流格式：32 段与 42 段各有独立的容器与取帧接口 */
+    KHHS42PosAttitude_TypeDef KHHS42PosAttitude;
+    KHHS32PosAttitude_TypeDef KHHS32PosAttitude;
     while (true)
     {
         /*
         接收到的数据包为60Hz
         */
         std::string gloveName = "Glove1";
-        static int frameCounter = 0;
         if (MotionGloveSDK_isGloveNewFramePending(gloveName.c_str()))
         {
-            printf("[%d]New frame received\n", frameCounter++);
+            GloveStreamSkeletonFormat_TypeDef frameType = GloveStreamFormat_Skeleton42;
+            (void)MotionGloveSDK_GetSkeletonsFrameType(gloveName.c_str(), &frameType);
+            const bool isLayout42 = (GloveStreamFormat_Skeleton42 == frameType);
+            const int getRet = isLayout42
+                ? MotionGloveSDK_GetSkeletons42Frame(gloveName.c_str(), &KHHS42PosAttitude)
+                : MotionGloveSDK_GetSkeletons32Frame(gloveName.c_str(), &KHHS32PosAttitude);
+
+            if (0 == getRet)
+            {
+                PrintGloveFrameHeader(isLayout42 ? KHHS42PosAttitude.hdr : KHHS32PosAttitude.hdr);
+                printf("New frame received\n");
+            }
+            else
+            {
+                printf("Get glove skeleton frame failed!\n");
+            }
+
             MotionGloveSDK_resetGloveNewFramePending(gloveName.c_str());
         }
 #ifdef _WIN32

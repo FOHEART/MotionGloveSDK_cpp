@@ -5,7 +5,8 @@
  *
  * @details
  * 在示例 1 的收帧闭环上，进一步打印取回帧内的骨骼信息
- * （帧号 / 骨骼数量 / 姿态数据），用于确认数据内容与格式。
+ * （帧号 / 骨骼数量 / 姿态数据），并额外打印左手拇指第 3 段与拇指末端
+ * 的位置（米）与欧拉角（度）。32 段布局没有末端骨骼，此时该列显示 N/A。
  */
 #ifdef _WIN32
 #include <windows.h>
@@ -17,11 +18,13 @@
 
 #include <string>
 #include "motionGloveSDK.h"
+#include "motionGloveSDK_exampleCommon.h"
 
 /** @brief 使用说明文本：程序启动后打印到控制台，说明运行流程。 */
 static const char* HEADER_COMMENT =
     u8"/*******motionGloveSDK_example2*********/\n"
-    u8"本程序用来测试左右手手掌的角度\n"
+    u8"本程序用来测试左右手手掌的角度，以及左手拇指第3段与拇指末端的位置和角度\n"
+    u8"位置单位米，角度单位度；拇指末端仅在42段骨骼格式中存在\n"
     u8"/*******************************************/\n";
 
 /**
@@ -87,9 +90,12 @@ int main(int argc, char* argv[])
 
             if (0 == getRet)
             {
+                const StreamHeader& hdr = isLayout42 ? KHHS42PosAttitude.hdr : KHHS32PosAttitude.hdr;
+#if 1
                 SingleSkeletonDef leftPalm = bones[isLayout42 ? KHHS42_LeftHand : KHHS32_LeftHand];
                 SingleSkeletonDef rightPalm = bones[isLayout42 ? KHHS42_RightHand : KHHS32_RightHand];
-                printf(" Left Palm Euler Angle: [%.2f, %.2f, %.2f] ",
+                PrintGloveFrameHeader(hdr);
+                printf("Left Palm Euler Angle: [%.2f, %.2f, %.2f] ",
                     leftPalm.euler_degree[0],
                     leftPalm.euler_degree[1],
                     leftPalm.euler_degree[2]);
@@ -98,6 +104,35 @@ int main(int argc, char* argv[])
                     rightPalm.euler_degree[1],
                     rightPalm.euler_degree[2]);
                 printf("\r\n");
+#endif
+#if 0
+                /* 左手拇指第 3 段：位置（米）+ 欧拉角（度）；末端骨骼仅在 42 段布局中存在 */
+                const SingleSkeletonDef& leftThumb3 = bones[isLayout42 ? KHHS42_LeftHandThumb3 : KHHS32_LeftHandThumb3];
+                PrintGloveFrameHeader(hdr);
+                printf("Left Thumb3 Pos(m): [%.4f, %.4f, %.4f] Euler(deg): [%.2f, %.2f, %.2f] ",
+                    leftThumb3.position_meter[0],
+                    leftThumb3.position_meter[1],
+                    leftThumb3.position_meter[2],
+                    leftThumb3.euler_degree[0],
+                    leftThumb3.euler_degree[1],
+                    leftThumb3.euler_degree[2]);
+                if (isLayout42)
+                {
+                    const SingleSkeletonDef& leftThumb3End = bones[KHHS42_LeftHandThumb3End];
+                    printf("Left Thumb3End Pos(m): [%.4f, %.4f, %.4f] Euler(deg): [%.2f, %.2f, %.2f]",
+                        leftThumb3End.position_meter[0],
+                        leftThumb3End.position_meter[1],
+                        leftThumb3End.position_meter[2],
+                        leftThumb3End.euler_degree[0],
+                        leftThumb3End.euler_degree[1],
+                        leftThumb3End.euler_degree[2]);
+                }
+                else
+                {
+                    printf("Left Thumb3End: N/A (32-segment layout has no fingertip)");
+                }
+                printf("\r\n");
+                #endif
             }
             else
             {

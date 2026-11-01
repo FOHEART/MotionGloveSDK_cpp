@@ -31,6 +31,7 @@ MotionGloveSDK/                        # 仓库根目录
 │
 ├── MotionGloveSDK_examples/           # 示例程序（自动扫描 *example*.cpp）
 │   └── src/
+│       ├── motionGloveSDK_exampleCommon.h    # 示例共用：统一打印行首 [帧序号][骨骼段数]
 │       ├── motionGloveSDK_example1.cpp
 │       ├── motionGloveSDK_example2.cpp
 │       ├── motionGloveSDK_example3.cpp
@@ -194,6 +195,10 @@ Windows 安装 VTK 的常见方式：
 
 > 以下以 Debug 版本为例讲解功能。
 
+> **统一打印行首：** 例程 1~4 的每条逐帧输出都以 `[帧序号][骨骼段数]` 开头，例如
+> `[1234][42] Left Palm Euler Angle: ...`。第一个中括号是当前帧的帧序号（取自帧头
+> `hdr.frameNumber`），第二个中括号是本帧的骨骼段数，取值为 `32`、`42` 或 `OpenXR`。
+
 ### 2.1 motionGloveSDK_example1
 
 **测试目的：** 测试是否接收到了 MotionGloveSDK 的数据转发，默认使用 UDP 监听本地 `5001` 端口。
@@ -205,7 +210,7 @@ Windows 安装 VTK 的常见方式：
 
 ![数据转发配置](./tools/images/image_4.png)
 
-如果运行正常，会打印出收到数据帧的帧序号，每秒 60 帧。
+如果运行正常，会打印出收到数据帧的帧序号，每秒 60 帧，行首形如 `[1234][42] New frame received`。
 
 3. 双击运行编译输出目录中的 `motionGloveSDK_example1d.exe`。
 
@@ -219,11 +224,22 @@ Windows 安装 VTK 的常见方式：
 
 ### 2.2 motionGloveSDK_example2
 
-**测试目的：** 测试左右手手背的角度。
+**测试目的：** 测试左右手手背的角度，以及左手拇指第 3 段与拇指末端的位置和角度。
 
 手背角度所在的坐标系为 MotionGlove 软件 3D 窗口左下角标识的坐标系。
 
 ![手背角度示例](./tools/images/image_7.png)
+
+**数据示例（最后一行输出）：**
+
+```
+[1234][42] Left Palm Euler Angle: [1.25, -2.30, 8.90]  Right Palm Euler Angle: [0.90, 1.10, -3.40]
+[1234][42] Left Thumb3 Pos(m): [0.0190, 0.0380, 0.0570] Euler(deg): [12.50, 1.00, 2.00] Left Thumb3End Pos(m): [0.0190, 0.0380, 0.0600] Euler(deg): [12.50, 1.00, 2.00]
+```
+
+- 每帧两行，行首都是统一的 `[帧序号][骨骼段数]`；
+- 位置 `Pos` 单位米，角度 `Euler` 单位度，姿态参考系与手背角度一致；
+- 拇指末端（`Thumb3End`）只在 42 段骨骼格式中存在；32 段格式下该列打印 `N/A`。
 
 ---
 
@@ -242,7 +258,7 @@ Windows 安装 VTK 的常见方式：
 **数据示例（最后一行输出）：**
 
 ```
-Thumb1[58.75, 60.60, -71.97]  Thumb2[-4.14, 27.18, 1.00]  Thumb3[-8.88, 80.38, 7.50]
+[1234][42] Left Thumb Angles: Thumb1[58.75, 60.60, -71.97], Thumb2[-4.14, 27.18, 1.00], Thumb3[-8.88, 80.38, 7.50]
 ```
 
 - **第 1 段**：相对于手背的角度，是所有手指里角度最复杂的一段。
@@ -268,7 +284,7 @@ Thumb1[58.75, 60.60, -71.97]  Thumb2[-4.14, 27.18, 1.00]  Thumb3[-8.88, 80.38, 7
 **数据示例（最后一行输出）：**
 
 ```
-Middle1[0.00, 57.37, 0.00]  Middle2[-0.00, 62.69, -0.00]  Middle3[-0.00, 62.69, -0.00]
+[1234][42] Left Middle Finger Angles: Middle1[0.00, 57.37, 0.00], Middle2[-0.00, 62.69, -0.00], Middle3[-0.00, 62.69, -0.00]
 ```
 
 - **第 1 段**：由于指关节自由度限制，可忽略 XZ 轴，只关心 Y 轴的 57.37°。

@@ -17,6 +17,7 @@
 
 #include <string>
 #include "motionGloveSDK.h"
+#include "motionGloveSDK_exampleCommon.h"
 
 /** @brief 使用说明文本：程序启动后打印到控制台，说明运行流程。 */
 static const char* HEADER_COMMENT =
@@ -93,6 +94,7 @@ int main(int argc, char* argv[])
                 SingleSkeletonDef leftMiddle1 = bones[isLayout42 ? KHHS42_LeftHandMiddle1 : KHHS32_LeftHandMiddle1];
                 SingleSkeletonDef leftMiddle2 = bones[isLayout42 ? KHHS42_LeftHandMiddle2 : KHHS32_LeftHandMiddle2];
                 SingleSkeletonDef leftMiddle3 = bones[isLayout42 ? KHHS42_LeftHandMiddle3 : KHHS32_LeftHandMiddle3];
+                PrintGloveFrameHeader(isLayout42 ? KHHS42PosAttitude.hdr : KHHS32PosAttitude.hdr);
                 printf("Left Middle Finger Angles: ");
                 printf("Middle1[%.2f, %.2f, %.2f], ",
                     leftMiddle1.euler_degree[0],

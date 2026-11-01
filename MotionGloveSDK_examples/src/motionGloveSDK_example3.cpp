@@ -17,6 +17,7 @@
 
 #include <string>
 #include "motionGloveSDK.h"
+#include "motionGloveSDK_exampleCommon.h"
 
 /** @brief 使用说明文本：程序启动后打印到控制台，说明运行流程。 */
 static const char* HEADER_COMMENT =
@@ -74,11 +75,8 @@ int main(int argc, char* argv[])
         接收到的数据包为60Hz
         */
         std::string gloveName = "Glove1";
-        static int frameCounter = 0;
         if (MotionGloveSDK_isGloveNewFramePending(gloveName.c_str()))
         {
-            //printf("[%d]New frame received\n", frameCounter++);
-
             GloveStreamSkeletonFormat_TypeDef frameType = GloveStreamFormat_Skeleton42;
             (void)MotionGloveSDK_GetSkeletonsFrameType(gloveName.c_str(), &frameType);
             const bool isLayout42 = (GloveStreamFormat_Skeleton42 == frameType);
@@ -93,8 +91,8 @@ int main(int argc, char* argv[])
                 SingleSkeletonDef leftThumb1 = bones[isLayout42 ? KHHS42_LeftHandThumb1 : KHHS32_LeftHandThumb1];
                 SingleSkeletonDef leftThumb2 = bones[isLayout42 ? KHHS42_LeftHandThumb2 : KHHS32_LeftHandThumb2];
                 SingleSkeletonDef leftThumb3 = bones[isLayout42 ? KHHS42_LeftHandThumb3 : KHHS32_LeftHandThumb3];
-                printf("Frame [%d] Left Thumb Angles: Thumb1[%.2f, %.2f, %.2f], Thumb2[%.2f, %.2f, %.2f], Thumb3[%.2f, %.2f, %.2f]",
-                    frameCounter++,
+                PrintGloveFrameHeader(isLayout42 ? KHHS42PosAttitude.hdr : KHHS32PosAttitude.hdr);
+                printf("Left Thumb Angles: Thumb1[%.2f, %.2f, %.2f], Thumb2[%.2f, %.2f, %.2f], Thumb3[%.2f, %.2f, %.2f]",
                     leftThumb1.euler_degree[0], leftThumb1.euler_degree[1], leftThumb1.euler_degree[2],
                     leftThumb2.euler_degree[0], leftThumb2.euler_degree[1], leftThumb2.euler_degree[2],
                     leftThumb3.euler_degree[0], leftThumb3.euler_degree[1], leftThumb3.euler_degree[2]
