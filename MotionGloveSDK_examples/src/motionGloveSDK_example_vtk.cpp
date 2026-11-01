@@ -1,3 +1,13 @@
+/**
+ * @file  motionGloveSDK_example_vtk.cpp
+ * @brief 示例 6（可选）：基于 VTK 9 的手套骨骼三维可视化。
+ * @ingroup mgsdk_examples
+ *
+ * @details
+ * 需要 BUILD_VTK_EXAMPLE=ON 且系统安装 VTK 9.x。演示把 SDK 取回的
+ * 42 段骨骼姿态映射为 VTK 场景中的几何体（圆柱/球），并用
+ * vtkInteractorStyleTrackballCamera 提供交互视角。
+ */
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -24,9 +34,15 @@
 #include <vtkSmartPointer.h>
 #include <vtkTransform.h>
 
+/** @brief 默认绑定的 UDP 端口号。 */
 static const int kDefaultUdpPort = 5001;
+/** @brief 默认查询的数据流（手套）名称。 */
 static const char* kDefaultGloveName = "Glove1";
 
+/**
+ * @brief 构建未收到有效位置数据前使用的"手掌状"默认布局坐标。
+ * @return 32 段骨骼的默认位置数组，单位米。
+ */
 static std::array<std::array<double, 3>, KHHS32_SkeletonCount> BuildFallbackPositions()
 {
     // Rough "hand-like" layout used before we receive valid position_meter values.
@@ -57,6 +73,12 @@ static std::array<std::array<double, 3>, KHHS32_SkeletonCount> BuildFallbackPosi
     return p;
 }
 
+/**
+ * @brief 把 SDK 的 xyzw 四元数转换为 VTK RotateWXYZ 需要的"角度 + 轴"表示。
+ * @param q_xyzw [in] 输入四元数，顺序 xyzw。
+ * @param outAngleDeg [out] 输出旋转角，单位度。
+ * @param outAxis [out] 输出旋转轴（长度 3，归一化）。
+ */
 static void QuaternionXYWZ_ToAxisAngleDeg(const float q_xyzw[4], double& outAngleDeg, double outAxis[3])
 {
     // SDK quaternion is xyzw; VTK RotateWXYZ expects angle + axis.
@@ -89,6 +111,11 @@ static void QuaternionXYWZ_ToAxisAngleDeg(const float q_xyzw[4], double& outAngl
     outAxis[2] = z / s;
 }
 
+/**
+ * @brief 判断一帧数据的全部骨骼位置是否均为零（未收到有效位置的判定依据）。
+ * @param frame [in] 待检查的帧数据。
+ * @return true 表示全部位置接近零；false 表示至少一段位置有效。
+ */
 static bool FramePositionsAllZero(const KHHS32PosAttitude_TypeDef& frame)
 {
     for (int i = 0; i < static_cast<int>(KHHS32_SkeletonCount); ++i)
@@ -102,23 +129,38 @@ static bool FramePositionsAllZero(const KHHS32PosAttitude_TypeDef& frame)
     return true;
 }
 
+/**
+ * @brief VTK 定时器回调：每帧从 SDK 取最新骨骼姿态并刷新场景。
+ * @details 挂接在 vtkRenderWindowInteractor 的 TimerEvent 上；
+ *          RenderWindow 用于触发重绘，帧数据经 SDK 查询接口获取。
+ */
 class VTKHandTimerCallback final : public vtkCommand
 {
 public:
+    /** @brief VTK 标准工厂方法：创建回调实例（等价于 new + Delete 计数管理）。 @return 新实例指针。 */
     static VTKHandTimerCallback* New() { return new VTKHandTimerCallback(); }
 
+    /** @brief 设置用于触发重绘的渲染窗口。 @param rw [in] 目标渲染窗口指针。 */
     void SetRenderWindow(vtkRenderWindow* rw) { this->RenderWindow = rw; }
 
+    /** @brief 设置骨骼变换数组（每段骨骼一个 vtkTransform）。 @param transforms [in] 变换数组指针。 */
     void SetTransforms(std::array<vtkSmartPointer<vtkTransform>, KHHS32_SkeletonCount>* transforms)
     {
         this->Transforms = transforms;
     }
 
+    /** @brief 设置未收到有效位置时使用的默认布局坐标。 @param fallback [in] 默认坐标数组指针。 */
     void SetFallbackPositions(std::array<std::array<double, 3>, KHHS32_SkeletonCount>* fallback)
     {
         this->FallbackPositions = fallback;
     }
 
+    /**
+     * @brief VTK 事件处理：TimerEvent 到来时从 SDK 取最新帧并更新各骨骼变换。
+     * @param caller [in] 事件来源对象（未使用）。
+     * @param eventId [in] 事件编号（仅处理 TimerEvent）。
+     * @param callData [in] 事件附加数据（未使用）。
+     */
     void Execute(vtkObject* caller, unsigned long eventId, void* callData) override
     {
         (void)caller;
@@ -132,7 +174,7 @@ public:
         if (MotionGloveSDK_isGloveNewFramePending(kDefaultGloveName))
         {
             KHHS32PosAttitude_TypeDef frame;
-            if (MotionGloveSDK_GetGloveSkeletonsFrame(kDefaultGloveName, &frame) == 0)
+            if (MotionGloveSDK_GetSkeletons32Frame(kDefaultGloveName, &frame) == 0)
             {
                 const bool allZeroPos = FramePositionsAllZero(frame);
 
@@ -172,13 +214,18 @@ public:
     }
 
 private:
+    /** @brief 触发重绘的渲染窗口（nullptr 表示未设置）。 */
     vtkRenderWindow* RenderWindow = nullptr;
+    /** @brief 骨骼变换数组指针，随帧更新旋转。 */
     std::array<vtkSmartPointer<vtkTransform>, KHHS32_SkeletonCount>* Transforms = nullptr;
+    /** @brief 默认布局坐标指针，位置全零时使用。 */
     std::array<std::array<double, 3>, KHHS32_SkeletonCount>* FallbackPositions = nullptr;
 };
 
+/** @brief UDP 端口是否已关闭的标志，保证关闭操作只执行一次。 */
 static bool gUdpClosed = false;
 
+/** @brief 幂等关闭 UDP 端口：仅在首次调用时执行 CloseUDPPort。 */
 static void CloseUdpPortOnce()
 {
     if (!gUdpClosed)
@@ -188,6 +235,13 @@ static void CloseUdpPortOnce()
     }
 }
 
+/**
+ * @brief VTK 退出事件回调：退出交互循环时关闭 UDP 端口。
+ * @param caller [in] 事件来源对象（未使用）。
+ * @param eventId [in] 事件编号（未使用）。
+ * @param clientData [in] 用户数据（未使用）。
+ * @param callData [in] 事件附加数据（未使用）。
+ */
 static void OnExit(vtkObject* caller, unsigned long eventId, void* clientData, void* callData)
 {
     (void)caller;
@@ -197,6 +251,13 @@ static void OnExit(vtkObject* caller, unsigned long eventId, void* clientData, v
     CloseUdpPortOnce();
 }
 
+/**
+ * @brief VTK 按键回调：按下 q/Q 时关闭 UDP 端口并结束渲染窗口。
+ * @param caller [in] 事件来源对象（vtkRenderWindowInteractor）。
+ * @param eventId [in] 事件编号（未使用）。
+ * @param clientData [in] 用户数据（未使用）。
+ * @param callData [in] 事件附加数据（未使用）。
+ */
 static void OnKeyPress(vtkObject* caller, unsigned long eventId, void* clientData, void* callData)
 {
     (void)eventId;
@@ -218,6 +279,12 @@ static void OnKeyPress(vtkObject* caller, unsigned long eventId, void* clientDat
     }
 }
 
+/**
+ * @brief 程序入口：绑定 UDP 端口后启动 VTK 3D 窗口，实时渲染 42 段手部骨骼。
+ * @param argc [in] 命令行参数个数（未使用）。
+ * @param argv [in] 命令行参数数组（未使用）。
+ * @return 0 表示正常退出；1 表示 UDP 绑定失败。
+ */
 int main(int argc, char* argv[])
 {
     (void)argc;

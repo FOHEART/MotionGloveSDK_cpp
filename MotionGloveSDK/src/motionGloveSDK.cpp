@@ -111,6 +111,15 @@ void resetKHHS42PosAttitude(KHHS42PosAttitude_TypeDef* input)
 }
 
 /**
+ * @brief 清空一帧 32 段骨骼姿态数据（整帧 memset 清零）。
+ * @param input [in,out] 待清零的帧数据指针，可为空（由调用方保证有效性）。
+ */
+void resetKHHS32PosAttitude(KHHS32PosAttitude_TypeDef* input)
+{
+	memset((void*)input, 0x00, sizeof(KHHS32PosAttitude_TypeDef));
+}
+
+/**
  * @brief 接收线程入口：清空管理器后进入 recvfrom 循环，
  *        按帧头解析数据流、更新"新帧待取"标记与最新帧暂存区。
  * @param lpParam [in] 线程参数，当前未使用，固定传 NULL。
@@ -219,6 +228,18 @@ static void* ThreadProc(void* lpParam)
 						&kpa.hdr, 
 						kpa.skeletons,
 						KHHS42_SkeletonCount);
+					if (MGSDK_DECODE_OPENXR_UNSUPPORTED == decodeRet)
+					{
+						/* 收到 OpenXR 布局：格式已识别但布局未定义，整帧丢弃。
+						   按累计次数节流打印，避免异常发送端刷屏。 */
+						static unsigned int openXrDropCount = 0;
+						++openXrDropCount;
+						if (1 == openXrDropCount || 0 == (openXrDropCount % 100))
+						{
+							printf("[warn] skeleton_openxr frame dropped (total %u)\r\n", openXrDropCount);
+						}
+						continue;
+					}
 					if (decodeRet == -1)
 						continue;
 					if (kpa.hdr.leftFigureSkeletonCount == 0)
@@ -234,14 +255,30 @@ static void* ThreadProc(void* lpParam)
 					}
 					if (index != -1)
 					{
+						GloveSuitManager_TypeDef* slot = &gloveSuitManager[index];
 						gloveSuitManagerLock.writeLock();
-						/*找到了名称相同的容器*/
-						resetKHHS42PosAttitude(&gloveSuitManager[index].posAttitude42);
-						
-						/*拷贝一次*/
-						memcpy(&gloveSuitManager[index].posAttitude42, &kpa, sizeof(KHHS42PosAttitude_TypeDef));
+						/*找到了名称相同的容器：按本帧格式写入对应容器*/
+						if (GloveStreamFormat_Skeleton32 == kpa.hdr.skeletonFormat)
+						{
+							resetKHHS32PosAttitude(&slot->posAttitude32);
+							memcpy(&slot->posAttitude32.hdr, &kpa.hdr, sizeof(StreamHeader));
+							memcpy(slot->posAttitude32.skeletons, kpa.skeletons,
+								sizeof(SingleSkeletonDef) * KHHS32_SkeletonCount);
+							slot->posAttitude32.remoteIP[0] = kpa.remoteIP[0];
+							slot->posAttitude32.remoteIP[1] = kpa.remoteIP[1];
+							slot->posAttitude32.remoteIP[2] = kpa.remoteIP[2];
+							slot->posAttitude32.remoteIP[3] = kpa.remoteIP[3];
+							slot->posAttitude32.remotePort = kpa.remotePort;
+							slot->posAttitude32.sdkVersion = kpa.sdkVersion;
+						}
+						else
+						{
+							resetKHHS42PosAttitude(&slot->posAttitude42);
+							memcpy(&slot->posAttitude42, &kpa, sizeof(KHHS42PosAttitude_TypeDef));
+						}
+						slot->frameFormat = kpa.hdr.skeletonFormat;
 						//printf("fn:%d\r\n", kpa.hdr.frameNumber);
-						gloveSuitManager[index].isNewFramePending = 1;
+						slot->isNewFramePending = 1;
 						gloveSuitManagerLock.writeUnLock();
 					}
 
@@ -698,9 +735,16 @@ bool MotionGloveSDK_resetGloveNewFramePending(const char* actorName)
 	return ret;
 }
 
-int  MotionGloveSDK_GetGloveSkeletonsFrame(const char* actorName, KHHS42PosAttitude_TypeDef* pKHHS42PosAttitude)
+/**
+ * @brief 按数据流名称定位管理器槽位下标。
+ * @param actorName [in] NUL 结尾的数据流名称；为空串时视为非法。
+ * @return 命中的槽位下标 [0, SUIT_MGR_MAXLEN)；名称为空或未找到时返回 -1。
+ */
+static int findActorIndex(const char* actorName)
 {
-	int ret = -1;
+	if (nullptr == actorName)
+		return -1;
+
 	int actualNameLen = 0;
 	for (int i = 0; i < ACTOR_NAME_LEN_MAX; i++)
 	{
@@ -714,22 +758,78 @@ int  MotionGloveSDK_GetGloveSkeletonsFrame(const char* actorName, KHHS42PosAttit
 		}
 	}
 	if (actualNameLen == 0)
-		return ret;
-	
-	if (0 == pKHHS42PosAttitude)
-	{
 		return -1;
-	}
 
-	int index = GloveSuitManager_SearchByName(gloveSuitManager, SUIT_MGR_MAXLEN, (uint8_t*)actorName, actualNameLen);
-	if (index != -1)
-	{
-		gloveSuitManagerLock.readLock();
-		memcpy((uint8_t*)pKHHS42PosAttitude, 
-			(uint8_t*)&gloveSuitManager[index].posAttitude42,
-			sizeof(KHHS42PosAttitude_TypeDef));
-		gloveSuitManagerLock.readUnLock();
-	}
+	return GloveSuitManager_SearchByName(gloveSuitManager, SUIT_MGR_MAXLEN,
+		(uint8_t*)actorName, actualNameLen);
+}
+
+int  MotionGloveSDK_GetSkeletonsFrameType(const char* actorName, GloveStreamSkeletonFormat_TypeDef* pFormat)
+{
+	if (nullptr == pFormat)
+		return -1;
+
+	int index = findActorIndex(actorName);
+	if (index == -1)
+		return -1;
+
+	gloveSuitManagerLock.readLock();
+	*pFormat = gloveSuitManager[index].frameFormat;
+	gloveSuitManagerLock.readUnLock();
 
 	return 0;
+}
+
+int  MotionGloveSDK_GetSkeletons42Frame(const char* actorName, KHHS42PosAttitude_TypeDef* pKHHS42PosAttitude)
+{
+	if (nullptr == pKHHS42PosAttitude)
+		return -1;
+
+	int index = findActorIndex(actorName);
+	if (index == -1)
+		return -1;
+
+	gloveSuitManagerLock.readLock();
+	if (GloveStreamFormat_Skeleton42 != gloveSuitManager[index].frameFormat)
+	{
+		gloveSuitManagerLock.readUnLock();
+		return -1;
+	}
+	memcpy((uint8_t*)pKHHS42PosAttitude,
+		(uint8_t*)&gloveSuitManager[index].posAttitude42,
+		sizeof(KHHS42PosAttitude_TypeDef));
+	gloveSuitManagerLock.readUnLock();
+
+	return 0;
+}
+
+int  MotionGloveSDK_GetSkeletons32Frame(const char* actorName, KHHS32PosAttitude_TypeDef* pKHHS32PosAttitude)
+{
+	if (nullptr == pKHHS32PosAttitude)
+		return -1;
+
+	int index = findActorIndex(actorName);
+	if (index == -1)
+		return -1;
+
+	gloveSuitManagerLock.readLock();
+	if (GloveStreamFormat_Skeleton32 != gloveSuitManager[index].frameFormat)
+	{
+		gloveSuitManagerLock.readUnLock();
+		return -1;
+	}
+	memcpy((uint8_t*)pKHHS32PosAttitude,
+		(uint8_t*)&gloveSuitManager[index].posAttitude32,
+		sizeof(KHHS32PosAttitude_TypeDef));
+	gloveSuitManagerLock.readUnLock();
+
+	return 0;
+}
+
+int  MotionGloveSDK_GetSkeletonsOpenXRFrame(const char* actorName, KHHSOpenXRPosAttitude_TypeDef* pKHHSOpenXRPosAttitude)
+{
+	/* OpenXR 布局尚未定义，SDK 当前也收不到该格式：接口签名与容器先行冻结，实现留待布局确定。 */
+	(void)actorName;
+	(void)pKHHSOpenXRPosAttitude;
+	return -1;
 }

@@ -1,4 +1,13 @@
-﻿#ifdef _WIN32
+/**
+ * @file  motionGloveSDK_example2.cpp
+ * @brief 示例 2：绑定 UDP 端口接收数据流，按帧输出骨骼姿态数据。
+ * @ingroup mgsdk_examples
+ *
+ * @details
+ * 在示例 1 的收帧闭环上，进一步打印取回帧内的骨骼信息
+ * （帧号 / 骨骼数量 / 姿态数据），用于确认数据内容与格式。
+ */
+#ifdef _WIN32
 #include <windows.h>
 
 #else
@@ -9,15 +18,19 @@
 #include <string>
 #include "motionGloveSDK.h"
 
+/** @brief 使用说明文本：程序启动后打印到控制台，说明运行流程。 */
 static const char* HEADER_COMMENT =
     u8"/*******motionGloveSDK_example2*********/\n"
     u8"本程序用来测试左右手手掌的角度\n"
     u8"/*******************************************/\n";
 
-/*
-绑定本机的5001端口 开始读取数据
-端口号要与MotionGlove中 设置->选项->插件->数据转发 中的端口号一致
-*/
+/**
+ * @brief 程序入口：绑定本机 UDP 端口并循环读取手套数据。
+ *        端口号要与 MotionGlove 中 设置->选项->插件->数据转发 中的端口号一致。
+ * @param argc [in] 命令行参数个数。
+ * @param argv [in] 命令行参数数组。
+ * @return 0 表示正常退出；-1 表示 UDP 绑定失败。
+ */
 int main(int argc, char* argv[])
 {
 #ifdef _WIN32
@@ -49,7 +62,7 @@ int main(int argc, char* argv[])
     HandsPosAttitudeCB_Regist函数是注册获取32段手指骨骼的回调函数。适用于FOHEART HMAX数据手套。
     *
     */
-    KHHS32PosAttitude_TypeDef KHHS32PosAttitude;
+    KHHS42PosAttitude_TypeDef KHHS42PosAttitude;
     while (true)
     {
         /*
@@ -61,10 +74,10 @@ int main(int argc, char* argv[])
         {
             //printf("[%d]New frame received\n", frameCounter++);
 
-            if (0 == MotionGloveSDK_GetGloveSkeletonsFrame(gloveName.c_str(), &KHHS32PosAttitude))
+            if (0 == MotionGloveSDK_GetSkeletons42Frame(gloveName.c_str(), &KHHS42PosAttitude))
             {
-                SingleSkeletonDef leftPalm = KHHS32PosAttitude.skeletons[KHHS32_LeftHand];
-                SingleSkeletonDef rightPalm = KHHS32PosAttitude.skeletons[KHHS32_RightHand];
+                SingleSkeletonDef leftPalm = KHHS42PosAttitude.skeletons[KHHS42_LeftHand];
+                SingleSkeletonDef rightPalm = KHHS42PosAttitude.skeletons[KHHS42_RightHand];
                 printf(" Left Palm Euler Angle: [%.2f, %.2f, %.2f] ",
                     leftPalm.euler_degree[0],
                     leftPalm.euler_degree[1],

@@ -1,4 +1,13 @@
-﻿#ifdef _WIN32
+/**
+ * @file  motionGloveSDK_example4.cpp
+ * @brief 示例 4：绑定 UDP 端口接收数据流，按帧输出骨骼姿态数据（变体）。
+ * @ingroup mgsdk_examples
+ *
+ * @details
+ * 与示例 2 / 3 同模式的接收闭环，强调"新帧查询 + 取帧"配对的另一种
+ * 调用节奏；可与示例 3 对比空转（无新帧）时的行为差异。
+ */
+#ifdef _WIN32
 #include <windows.h>
 
 #else
@@ -9,6 +18,7 @@
 #include <string>
 #include "motionGloveSDK.h"
 
+/** @brief 使用说明文本：程序启动后打印到控制台，说明运行流程。 */
 static const char* HEADER_COMMENT =
     u8"/*******motionGloveSDK_example4*********/\n"
     u8"本程序用来测试左手中指三段骨骼的角度\n"
@@ -17,10 +27,13 @@ static const char* HEADER_COMMENT =
     u8"中指第3段的角度为相对于第2段的角度\n"
     u8"/*******************************************/\n";
 
-/*
-绑定本机的5001端口 开始读取数据
-端口号要与MotionGlove中 设置->选项->插件->数据转发 中的端口号一致
-*/
+/**
+ * @brief 程序入口：绑定本机 UDP 端口并循环读取手套数据。
+ *        端口号要与 MotionGlove 中 设置->选项->插件->数据转发 中的端口号一致。
+ * @param argc [in] 命令行参数个数。
+ * @param argv [in] 命令行参数数组。
+ * @return 0 表示正常退出；-1 表示 UDP 绑定失败。
+ */
 int main(int argc, char* argv[])
 {
 #ifdef _WIN32
@@ -52,7 +65,7 @@ int main(int argc, char* argv[])
     HandsPosAttitudeCB_Regist函数是注册获取32段手指骨骼的回调函数。适用于FOHEART HMAX数据手套。
     *
     */
-    KHHS32PosAttitude_TypeDef KHHS32PosAttitude;
+    KHHS42PosAttitude_TypeDef KHHS42PosAttitude;
     while (true)
     {
         /*
@@ -64,12 +77,11 @@ int main(int argc, char* argv[])
         {
             //printf("[%d]New frame received\n", frameCounter++);
 
-            if (0 == MotionGloveSDK_GetGloveSkeletonsFrame(gloveName.c_str(), &KHHS32PosAttitude))
+            if (0 == MotionGloveSDK_GetSkeletons42Frame(gloveName.c_str(), &KHHS42PosAttitude))
             {
-                SingleSkeletonDef leftMiddle1 = KHHS32PosAttitude.skeletons[KHHS32_LeftHandMiddle1];
-                SingleSkeletonDef leftMiddle2 = KHHS32PosAttitude.skeletons[KHHS32_LeftHandMiddle2];
-                SingleSkeletonDef leftMiddle3 = KHHS32PosAttitude.skeletons[KHHS32_LeftHandMiddle3];
-
+                SingleSkeletonDef leftMiddle1 = KHHS42PosAttitude.skeletons[KHHS42_LeftHandMiddle1];
+                SingleSkeletonDef leftMiddle2 = KHHS42PosAttitude.skeletons[KHHS42_LeftHandMiddle2];
+                SingleSkeletonDef leftMiddle3 = KHHS42PosAttitude.skeletons[KHHS42_LeftHandMiddle3];
                 printf("Left Middle Finger Angles: ");
                 printf("Middle1[%.2f, %.2f, %.2f], ",
                     leftMiddle1.euler_degree[0],
