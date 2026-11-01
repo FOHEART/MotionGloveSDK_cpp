@@ -1,15 +1,16 @@
-﻿#include "inc/motionGloveSdkHelper.h"
-
-/**
- * @brief Search suit manager by actor name.
- * @brief (中文) 根据名称在手套套装管理器中搜索。
+﻿/**
+ * @file  motionGloveSdkHelper.cpp
+ * @brief SDK 内部辅助函数实现：套装管理器查找/添加、CSV 帧格式识别。
+ * @ingroup mgsdk_decode
  *
- * @param mssm Pointer to suit manager array.
- * @param len Length of the array.
- * @param actorName Name to search for.
- * @param nameLen Length of the name to compare.
- * @return index if found; -1 if not found.
+ * @details
+ * 本文件实现 inc/motionGloveSdkHelper.h 声明的全部辅助函数；
+ * 参数与返回值语义以头文件声明处为准（不在此重复文档，避免漂移）。
  */
+#include "inc/motionGloveSdkHelper.h"
+
+// 名称比较长度超过上限时截断；名称长度 <= 0、数组指针为空、长度 <= 0
+// 都视为参数非法，直接返回 -1。
 int GloveSuitManager_SearchByName(GloveSuitManager_TypeDef* mssm, int len, uint8_t* actorName, int nameLen)
 {
 	int ret = -1;
@@ -53,14 +54,7 @@ int GloveSuitManager_SearchByName(GloveSuitManager_TypeDef* mssm, int len, uint8
 }
 
 
-/**
- * @brief Find first unoccupied slot in suit manager.
- * @brief (中文) 获取第一个未占用的套装索引。
- *
- * @param mssm Pointer to suit manager array.
- * @param len Length of the array.
- * @return index of first unoccupied slot or -1 if none.
- */
+// "未占用"以 actorName[0] == 0x00 判定，找到第一个即返回。
 int GloveSuitManager_getFirstUnOccupy(GloveSuitManager_TypeDef* mssm, int len)
 {
 	int ret = -1;
@@ -81,16 +75,7 @@ int GloveSuitManager_getFirstUnOccupy(GloveSuitManager_TypeDef* mssm, int len)
 }
 
 
-/**
- * @brief Add an actor name to the suit manager.
- * @brief (中文) 向套装管理器中添加名称。
- *
- * @param mssm Pointer to suit manager array.
- * @param len Length of the array.
- * @param actorName Name bytes to copy.
- * @param nameLen Number of bytes in name.
- * @return index of the added suit or -1 on failure.
- */
+// 先找空闲槽位，再按字节复制名称（不写 NUL 结尾符），长度记入 actorNameLen。
 int GloveSuitManager_AddName(GloveSuitManager_TypeDef* mssm, int len, uint8_t* actorName, int nameLen)
 {
 	int ret = -1;
@@ -115,6 +100,7 @@ int GloveSuitManager_AddName(GloveSuitManager_TypeDef* mssm, int len, uint8_t* a
 	return unOccupyIdx;
 }
 
+// "Glove" 必须出现在字符串开头（下标 0），出现在其他位置不算命中。
 int isFrameCSV_Glove(const char* buff)
 {
 	int ret = -1;
@@ -139,6 +125,7 @@ int isFrameCSV_Glove(const char* buff)
 	}
 	return ret;
 }
+// "Actor" 必须出现在字符串开头（下标 0），用于区分全身动捕数据流。
 int isFrameCSV_FullBodyMocap(const char* buff)
 {
 	int ret = -1;
@@ -164,13 +151,7 @@ int isFrameCSV_FullBodyMocap(const char* buff)
 	}
 	return ret;
 }
-/**
- * @brief Check whether the string is CSV format (starts with "Glove" or "Actor").
- * @brief (中文) 检查字符串是否是csv格式的，特征是字符串以 Glove 或者 Actor 开头。
- *
- * @param buff Input string buffer.
- * @return 0 if CSV format; -1 otherwise.
- */
+// CSV 判定 = 手套流或全身流任一命中。
 int isFrameCSVFormat(const char* buff)
 {
 	int ret = -1;

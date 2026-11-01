@@ -39,8 +39,8 @@
  * @param[out] sh            帧头输出，不可为 NULL；函数开头会以 0 清零后写入。
  * @param[out] ssd           骨骼输出数组，不可为 NULL，容量至少 @p skeletonCount 个
  *                           SingleSkeletonDef；每段骨骼含位置/欧拉角/四元数。
- * @param[in]  skeletonCount 输出数组容量，必须为 ::KHHS32_SkeletonCount（32）或
- *                           ::KHHS42_SkeletonCount（42）；本帧解析出的段数超过该容量时返回 -1。
+ * @param[in]  skeletonCount 输出数组容量，必须为 ::KHHS32_SkeletonCount 即 32，
+ *                           或 ::KHHS42_SkeletonCount 即 42；本帧解析出的段数超过该容量时返回 -1。
  *                           调用方传 42 即可同时接收 32 段与 42 段帧。
  *
  * @return 状态码：

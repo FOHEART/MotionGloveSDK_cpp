@@ -62,16 +62,19 @@ MotionGloveSDK/                        # 仓库根目录
 直接运行对应平台的一键脚本，自动完成 Debug 和 Release 两套构建与安装：
 
 **Windows（Visual Studio 2022）**
+
 ```
 双击运行 [Windows]build_vs2022.bat
 ```
 
 **Windows（Visual Studio 2026）**
+
 ```
 双击运行 [Windows]build_vs2026.bat
 ```
 
 **Linux / Ubuntu**
+
 ```bash
 bash "[Linux]build.sh"
 ```
@@ -80,9 +83,10 @@ bash "[Linux]build.sh"
 
 ### 手动构建
 
-#### Windows（Visual Studio 2022）
+### Windows（Visual Studio 2022）
 
 编译 Debug：
+
 ```console
 cmake -S . -B out/build/x64-Debug -G "Visual Studio 17 2022" -A x64 -DCMAKE_CONFIGURATION_TYPES="Debug"
 cmake --build out/build/x64-Debug --config Debug
@@ -90,24 +94,27 @@ cmake --install out/build/x64-Debug --config Debug --prefix out/install/x64-Debu
 ```
 
 编译 Release：
+
 ```console
 cmake -S . -B out/build/x64-Release -G "Visual Studio 17 2022" -A x64 -DCMAKE_CONFIGURATION_TYPES="Release"
 cmake --build out/build/x64-Release --config Release
 cmake --install out/build/x64-Release --config Release --prefix out/install/x64-Release
 ```
 
-#### Windows（Visual Studio 2026）
+### Windows（Visual Studio 2026）
 
 与 VS 2022 相同，将生成器改为 `"Visual Studio 18 2026"`：
+
 ```console
 cmake -S . -B out/build/x64-Debug -G "Visual Studio 18 2026" -A x64 -DCMAKE_CONFIGURATION_TYPES="Debug"
 cmake --build out/build/x64-Debug --config Debug
 cmake --install out/build/x64-Debug --config Debug --prefix out/install/x64-Debug
 ```
 
-#### Linux / Ubuntu
+### Linux / Ubuntu
 
 编译 Debug：
+
 ```console
 cmake -S . -B out/build/x64-Debug -DCMAKE_BUILD_TYPE=Debug
 cmake --build out/build/x64-Debug
@@ -115,6 +122,7 @@ cmake --install out/build/x64-Debug --prefix out/install/x64-Debug
 ```
 
 编译 Release：
+
 ```console
 cmake -S . -B out/build/x64-Release -DCMAKE_BUILD_TYPE=Release
 cmake --build out/build/x64-Release
@@ -126,13 +134,16 @@ cmake --install out/build/x64-Release --prefix out/install/x64-Release
 该示例会在启动时打开一个 VTK 3D 窗口，并绑定本机 UDP `5001` 端口接收手套骨骼数据（32 段）。
 
 **前置条件：**
+
 - 安装 VTK 9.x（推荐 9.0+）
 
 **启用构建：**
+
 - CMake 增加：`-DBUILD_VTK_EXAMPLE=ON`
 - 如果 CMake 找不到 VTK，请设置 `VTK_DIR` 或 `CMAKE_PREFIX_PATH` 指向 VTK 的 CMake 配置目录
 
 Windows 安装 VTK 的常见方式：
+
 - 使用 vcpkg 安装（需要配置 toolchain file）
 - 使用 VTK 官方预编译安装包，或自行从源码编译安装
 
@@ -140,10 +151,10 @@ Windows 安装 VTK 的常见方式：
 
 ## 构建产物
 
-| 平台    | 库文件                                         | 安装目录                   |
-|---------|------------------------------------------------|----------------------------|
-| Windows | `MotionGloveSDK.dll` / `MotionGloveSDK.lib`   | `out/install/x64-Debug/`   |
-| Linux   | `libMotionGloveSDK.so`                         | `out/install/x64-Debug/`   |
+| 平台    | 库文件                                          | 安装目录                   |
+| ------- | ----------------------------------------------- | -------------------------- |
+| Windows | `MotionGloveSDK.dll` / `MotionGloveSDK.lib` | `out/install/x64-Debug/` |
+| Linux   | `libMotionGloveSDK.so`                        | `out/install/x64-Debug/` |
 
 示例可执行文件生成在各自的 `out/build/x64-Debug/` 或 `out/build/x64-Release/` 目录下。
 
@@ -162,20 +173,20 @@ Windows 安装 VTK 的常见方式：
 
 数据手套开机，首先打开 MotionGlove 数据手套客户端，确保客户端已连接数据手套并正常运行：
 
-![MotionGlove 客户端](./images/image_1.png)
+![MotionGlove 客户端](./tools/images/image_1.png)
 
 **网络配置：**
 
 - **本机测试（Windows）**：在软件菜单栏 -> 设置 -> 插件 -> 数据转发 中添加 `127.0.0.1` 端口 `5000`（软件默认已添加）
 
-![数据转发设置](./images/image_2.png)
+![数据转发设置](./tools/images/image_2.png)
 
 - **局域网测试**：填入运行 MotionGloveSDK 的 PC 网络 IP 地址。
 - **Ubuntu 测试**：填入运行 MotionGloveSDK 的 PC 网络 IP 地址，确保与 Ubuntu 系统网络畅通。
 
 转发规则如下：
 
-![转发规则](./images/image_3.png)
+![转发规则](./tools/images/image_3.png)
 
 ---
 
@@ -183,7 +194,7 @@ Windows 安装 VTK 的常见方式：
 
 > 以下以 Debug 版本为例讲解功能。
 
-#### 2.1 motionGloveSDK_example1
+### 2.1 motionGloveSDK_example1
 
 **测试目的：** 测试是否接收到了 MotionGloveSDK 的数据转发，默认使用 UDP 监听本地 `5001` 端口。
 
@@ -192,41 +203,41 @@ Windows 安装 VTK 的常见方式：
 1. 打开 MotionGlove 软件，并且手套连接正常。
 2. 确保在软件菜单栏 -> 设置 -> 插件 -> 数据转发 中添加了 `127.0.0.1` 端口 `5000`（软件默认已添加）。
 
-![数据转发配置](./images/image_4.png)
+![数据转发配置](./tools/images/image_4.png)
 
 如果运行正常，会打印出收到数据帧的帧序号，每秒 60 帧。
 
 3. 双击运行编译输出目录中的 `motionGloveSDK_example1d.exe`。
 
-![运行示例1](./images/image_5.png)
+![运行示例1](./tools/images/image_5.png)
 
 打印 `New frame received` 代表收到了转发的数据。
 
-![输出结果](./images/image_6.png)
+![输出结果](./tools/images/image_6.png)
 
 ---
 
-#### 2.2 motionGloveSDK_example2
+### 2.2 motionGloveSDK_example2
 
 **测试目的：** 测试左右手手背的角度。
 
 手背角度所在的坐标系为 MotionGlove 软件 3D 窗口左下角标识的坐标系。
 
-![手背角度示例](./images/image_7.png)
+![手背角度示例](./tools/images/image_7.png)
 
 ---
 
-#### 2.3 motionGloveSDK_example3
+### 2.3 motionGloveSDK_example3
 
 **测试目的：** 测试左手拇指三段骨骼的角度。
 
-| 骨骼段 | 角度参考 |
-|--------|----------|
-| 第 1 段 | 相对于手背的角度 |
+| 骨骼段  | 角度参考            |
+| ------- | ------------------- |
+| 第 1 段 | 相对于手背的角度    |
 | 第 2 段 | 相对于第 1 段的角度 |
 | 第 3 段 | 相对于第 2 段的角度 |
 
-![拇指骨骼角度](./images/image_8.png)
+![拇指骨骼角度](./tools/images/image_8.png)
 
 **数据示例（最后一行输出）：**
 
@@ -242,17 +253,17 @@ Thumb1[58.75, 60.60, -71.97]  Thumb2[-4.14, 27.18, 1.00]  Thumb3[-8.88, 80.38, 7
 
 ---
 
-#### 2.4 motionGloveSDK_example4
+### 2.4 motionGloveSDK_example4
 
 **测试目的：** 测试左手中指三段骨骼的角度。
 
-| 骨骼段 | 角度参考 |
-|--------|----------|
-| 第 1 段 | 相对于手背的角度 |
+| 骨骼段  | 角度参考            |
+| ------- | ------------------- |
+| 第 1 段 | 相对于手背的角度    |
 | 第 2 段 | 相对于第 1 段的角度 |
 | 第 3 段 | 相对于第 2 段的角度 |
 
-![中指骨骼角度](./images/image_9.png)
+![中指骨骼角度](./tools/images/image_9.png)
 
 **数据示例（最后一行输出）：**
 

@@ -118,7 +118,7 @@ typedef struct {
 /**
  * @brief 一帧完整的 32 段骨骼数据：帧头 + 骨骼数组 + 数据来源信息。
  * @details 与 #KHHS42PosAttitude_TypeDef 同构，仅骨骼数组长度不同；
- *          骨骼顺序遵循 #kinemHumanHandsSkeleton32Index（右手 16 段 → 左手 16 段）。
+ *          骨骼顺序遵循 #kinemHumanHandsSkeleton32Index ，即右手 16 段 → 左手 16 段。
  *          独立成类型是为了让 32 段与 42 段各自原生，不做上采样。
  */
 typedef struct {

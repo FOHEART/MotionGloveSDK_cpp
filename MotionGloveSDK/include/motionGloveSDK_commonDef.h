@@ -139,7 +139,7 @@ const std::string MVSDK_ChannelOrder_StringDesc[MVSDK_CHANNEL_ORDER_MAX] = {
 
 /**
  * @brief 数据流的骨骼段数格式：由帧头 `fn <帧号>` 之后的可缺省标记决定。
- * @details 帧内没有该标记时为 #GloveStreamFormat_Skeleton32（老格式），
+ * @details 帧内没有该标记时为 #GloveStreamFormat_Skeleton32 ，即老格式，
  *          因此该枚举的 0 值刻意与「无标记」等价，结构体清零后即为合法默认值。
  */
 typedef enum _GloveStreamSkeletonFormat : uint8_t
