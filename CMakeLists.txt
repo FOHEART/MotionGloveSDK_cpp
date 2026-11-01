@@ -131,3 +131,12 @@ if(BUILD_VTK_EXAMPLE)
     endif()
 endif()
 
+# ── 单元测试（GoogleTest / TDD）─────────────────────────────────────────────
+# 测试目录自带 GoogleTest 接入（FetchContent），只测算纯逻辑层
+# （eulerToQuat / decodeAsGloveCSV / readWriteLock），不依赖 UDP 与窗口环境。
+option(BUILD_TESTS "Build MotionGloveSDK unit tests (GoogleTest)" ON)
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests/unit)
+endif()
+

@@ -1,8 +1,19 @@
-﻿#pragma once
+﻿/**
+ * @file  motionGloveSDK_skeleton32Def.h
+ * @brief 32 段手部骨骼定义：骨骼编号枚举与骨骼名称表。
+ * @ingroup mgsdk_types
+ *
+ * @details
+ * 模块边界：纯数据类型（枚举 + const std::string 名称表），无实现。
+ * 32 段协议为旧版手部骨骼；当前 SDK 主流为 42 段
+ * （见 motionGloveSDK_skeleton42Def.h），两者叠用见 decoded 数据结构。
+ */
+#pragma once
 #include <stdint.h>
 #include <string>
 
 
+/** @brief 32 段手部骨骼编号：索引 0~15 为右手（手掌 + 5 指 x 3），16~31 为左手；KHHS32_SkeletonCount = 32。 */
 typedef enum : uint32_t
 {
 
@@ -45,6 +56,7 @@ typedef enum : uint32_t
 	KHHS32_SkeletonCount
 }kinemHumanHandsSkeleton32Index;
 
+/** @brief 32 段骨骼全称名称表：索引与 #kinemHumanHandsSkeleton32Index 枚举一一对应。 */
 const std::string kinemHumanHandsSkeleton32[KHHS32_SkeletonCount] = {
 
 	"RightHand",
@@ -85,6 +97,7 @@ const std::string kinemHumanHandsSkeleton32[KHHS32_SkeletonCount] = {
 	"LeftHandPinky3"
 };
 
+/** @brief 32 段骨骼短名（缩写）名称表：索引与 #kinemHumanHandsSkeleton32Index 枚举一一对应。 */
 const std::string kinemHumanHandsSkeleton32Short[KHHS32_SkeletonCount] = {
 
 	"rHAND",
