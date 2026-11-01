@@ -182,6 +182,10 @@ public:
 			//for (int groupIndex = 0; groupIndex < groupItemCount; groupItemCount++)
 			{
 				unsigned int groupStartIndex = skeletonIndex*groupItemCount;
+				/* 姿态列的起点随 pos 开关变化：无 pos 时每段直接从姿态字段开始 */
+				const unsigned int attitudeOffset =
+					(skeletonPosition == SkeletonPosition_Meter) ? 3u : 0u;
+
 				if (skeletonPosition == SkeletonPosition_Meter)
 				{
 					pos[skeletonIndex][0] = std::stof(dataVec[groupStartIndex + 0]);
@@ -191,16 +195,16 @@ public:
 				
 				if (skeletonAttitude == SkeletonAttitude_Euler)
 				{
-					euler[skeletonIndex][0] = std::stof(dataVec[groupStartIndex + 3]);
-					euler[skeletonIndex][1] = std::stof(dataVec[groupStartIndex + 4]);
-					euler[skeletonIndex][2] = std::stof(dataVec[groupStartIndex + 5]);
+					euler[skeletonIndex][0] = std::stof(dataVec[groupStartIndex + attitudeOffset + 0]);
+					euler[skeletonIndex][1] = std::stof(dataVec[groupStartIndex + attitudeOffset + 1]);
+					euler[skeletonIndex][2] = std::stof(dataVec[groupStartIndex + attitudeOffset + 2]);
 				}
 				else if (skeletonAttitude == SkeletonAttitude_Quat)
 				{
-					quat[skeletonIndex][0] = std::stof(dataVec[groupStartIndex + 3]);
-					quat[skeletonIndex][1] = std::stof(dataVec[groupStartIndex + 4]);
-					quat[skeletonIndex][2] = std::stof(dataVec[groupStartIndex + 5]);
-					quat[skeletonIndex][3] = std::stof(dataVec[groupStartIndex + 6]);
+					quat[skeletonIndex][0] = std::stof(dataVec[groupStartIndex + attitudeOffset + 0]);
+					quat[skeletonIndex][1] = std::stof(dataVec[groupStartIndex + attitudeOffset + 1]);
+					quat[skeletonIndex][2] = std::stof(dataVec[groupStartIndex + attitudeOffset + 2]);
+					quat[skeletonIndex][3] = std::stof(dataVec[groupStartIndex + attitudeOffset + 3]);
 				
 				}
 			}

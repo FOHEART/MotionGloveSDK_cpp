@@ -59,10 +59,12 @@ int main(int argc, char* argv[])
     *注册一个回调函数 每当sdk收到一帧有效的数据 就回调一次函数
     *所有与手部姿态位置等相关的信息 都可以从函数内部获取到
     *
-    HandsPosAttitudeCB_Regist函数是注册获取32段手指骨骼的回调函数。适用于FOHEART HMAX数据手套。
+    获取手部骨骼姿态：示例会先查询当前帧的骨骼格式，自动适配 32 段与 42 段两种数据流。
     *
     */
+    /* 兼容两种数据流格式：32 段与 42 段各有独立的容器与取帧接口 */
     KHHS42PosAttitude_TypeDef KHHS42PosAttitude;
+    KHHS32PosAttitude_TypeDef KHHS32PosAttitude;
     while (true)
     {
         /*
@@ -74,10 +76,19 @@ int main(int argc, char* argv[])
         {
             //printf("[%d]New frame received\n", frameCounter++);
 
-            if (0 == MotionGloveSDK_GetSkeletons42Frame(gloveName.c_str(), &KHHS42PosAttitude))
+            GloveStreamSkeletonFormat_TypeDef frameType = GloveStreamFormat_Skeleton42;
+            (void)MotionGloveSDK_GetSkeletonsFrameType(gloveName.c_str(), &frameType);
+            const bool isLayout42 = (GloveStreamFormat_Skeleton42 == frameType);
+            const int getRet = isLayout42
+                ? MotionGloveSDK_GetSkeletons42Frame(gloveName.c_str(), &KHHS42PosAttitude)
+                : MotionGloveSDK_GetSkeletons32Frame(gloveName.c_str(), &KHHS32PosAttitude);
+            const SingleSkeletonDef* bones = isLayout42
+                ? KHHS42PosAttitude.skeletons : KHHS32PosAttitude.skeletons;
+
+            if (0 == getRet)
             {
-                SingleSkeletonDef leftPalm = KHHS42PosAttitude.skeletons[KHHS42_LeftHand];
-                SingleSkeletonDef rightPalm = KHHS42PosAttitude.skeletons[KHHS42_RightHand];
+                SingleSkeletonDef leftPalm = bones[isLayout42 ? KHHS42_LeftHand : KHHS32_LeftHand];
+                SingleSkeletonDef rightPalm = bones[isLayout42 ? KHHS42_RightHand : KHHS32_RightHand];
                 printf(" Left Palm Euler Angle: [%.2f, %.2f, %.2f] ",
                     leftPalm.euler_degree[0],
                     leftPalm.euler_degree[1],

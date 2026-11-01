@@ -638,4 +638,71 @@ TEST(DecodeAsGloveCSV, ActorNameResemblingMarkerIsNotTreatedAsMarker)
     EXPECT_EQ(ret, 0);
     EXPECT_EQ(sh.skeletonFormat, GloveStreamFormat_Skeleton32);
 }
+/**
+ * @test   DecodeAsGloveCSV.ParsesFrameWithoutPositionColumns
+ * @brief  正常路径：帧头不含 `pos` 时按 3 列/段读取欧拉角，不越界。
+ * @details 目的：协议允许关闭位置输出，此时每段只有 3 个欧拉角字段；
+ *          姿态列偏移必须随 `pos` 开关变化，否则会读到下一段的字段、
+ *          并在最后一段越界读取。
+ * @expected 返回 0；skeletonPosition == None；第 0 段欧拉角 (1,2,3)；
+ *           第 31 段欧拉角 (311,312,313)。
+ * @priority P0
+ */
+TEST(DecodeAsGloveCSV, ParsesFrameWithoutPositionColumns)
+{
+    std::vector<float> values;
+    for (unsigned int i = 0; i < KHHS32_SkeletonCount; ++i)
+    {
+        values.push_back(static_cast<float>(i) * 10.0f + 1.0f);
+        values.push_back(static_cast<float>(i) * 10.0f + 2.0f);
+        values.push_back(static_cast<float>(i) * 10.0f + 3.0f);
+    }
+
+    StreamHeader sh;
+    SingleSkeletonDef ssd[KHHS42_SkeletonCount];
+    std::string frame = makeFrame("Glove1-SN-TEST euler ZXY relative fn 712 subpackage 1/1", values);
+
+    const int ret = decodeAsGloveCSV_Func(&frame[0], &sh, ssd, KHHS42_SkeletonCount);
+
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(sh.skeletonPosition, SkeletonPosition_None);
+    EXPECT_NEAR_FLOAT(ssd[0].euler_degree[0], 1.0f, 1e-3f);
+    EXPECT_NEAR_FLOAT(ssd[0].euler_degree[1], 2.0f, 1e-3f);
+    EXPECT_NEAR_FLOAT(ssd[0].euler_degree[2], 3.0f, 1e-3f);
+    EXPECT_NEAR_FLOAT(ssd[31].euler_degree[0], 311.0f, 1e-3f);
+    EXPECT_NEAR_FLOAT(ssd[31].euler_degree[2], 313.0f, 1e-3f);
+}
+
+/**
+ * @test   DecodeAsGloveCSV.ParsesQuatFrameWithoutPositionColumns
+ * @brief  正常路径：帧头不含 `pos` 且姿态为四元数时按 4 列/段读取，不越界。
+ * @details 目的：与欧拉角分支共用同一处偏移计算，四元数与欧拉角的
+ *          字段宽度不同，必须各自落在正确的偏移上。
+ * @expected 返回 0；skeletonAttitude == Quat；第 31 段四元数为单位四元数 (0,0,0,1)。
+ * @priority P1
+ */
+TEST(DecodeAsGloveCSV, ParsesQuatFrameWithoutPositionColumns)
+{
+    std::vector<float> values;
+    for (unsigned int i = 0; i < KHHS32_SkeletonCount; ++i)
+    {
+        values.push_back(1.0f);   // w
+        values.push_back(0.0f);   // x
+        values.push_back(0.0f);   // y
+        values.push_back(0.0f);   // z
+    }
+
+    StreamHeader sh;
+    SingleSkeletonDef ssd[KHHS42_SkeletonCount];
+    std::string frame = makeFrame("Glove1-SN-TEST quat relative fn 713 subpackage 1/1", values);
+
+    const int ret = decodeAsGloveCSV_Func(&frame[0], &sh, ssd, KHHS42_SkeletonCount);
+
+    EXPECT_EQ(ret, 0);
+    EXPECT_EQ(sh.skeletonAttitude, SkeletonAttitude_Quat);
+    EXPECT_NEAR_FLOAT(ssd[31].quat_xyzw[0], 0.0f, 1e-4f);
+    EXPECT_NEAR_FLOAT(ssd[31].quat_xyzw[1], 0.0f, 1e-4f);
+    EXPECT_NEAR_FLOAT(ssd[31].quat_xyzw[2], 0.0f, 1e-4f);
+    EXPECT_NEAR_FLOAT(ssd[31].quat_xyzw[3], 1.0f, 1e-4f);
+}
 /// @endcond

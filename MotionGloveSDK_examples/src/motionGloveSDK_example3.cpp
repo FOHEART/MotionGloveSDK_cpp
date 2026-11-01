@@ -62,10 +62,12 @@ int main(int argc, char* argv[])
     *注册一个回调函数 每当sdk收到一帧有效的数据 就回调一次函数
     *所有与手部姿态位置等相关的信息 都可以从函数内部获取到
     *
-    HandsPosAttitudeCB_Regist函数是注册获取32段手指骨骼的回调函数。适用于FOHEART HMAX数据手套。
+    获取手部骨骼姿态：示例会先查询当前帧的骨骼格式，自动适配 32 段与 42 段两种数据流。
     *
     */
+    /* 兼容两种数据流格式：32 段与 42 段各有独立的容器与取帧接口 */
     KHHS42PosAttitude_TypeDef KHHS42PosAttitude;
+    KHHS32PosAttitude_TypeDef KHHS32PosAttitude;
     while (true)
     {
         /*
@@ -77,11 +79,20 @@ int main(int argc, char* argv[])
         {
             //printf("[%d]New frame received\n", frameCounter++);
 
-            if (0 == MotionGloveSDK_GetSkeletons42Frame(gloveName.c_str(), &KHHS42PosAttitude))
+            GloveStreamSkeletonFormat_TypeDef frameType = GloveStreamFormat_Skeleton42;
+            (void)MotionGloveSDK_GetSkeletonsFrameType(gloveName.c_str(), &frameType);
+            const bool isLayout42 = (GloveStreamFormat_Skeleton42 == frameType);
+            const int getRet = isLayout42
+                ? MotionGloveSDK_GetSkeletons42Frame(gloveName.c_str(), &KHHS42PosAttitude)
+                : MotionGloveSDK_GetSkeletons32Frame(gloveName.c_str(), &KHHS32PosAttitude);
+            const SingleSkeletonDef* bones = isLayout42
+                ? KHHS42PosAttitude.skeletons : KHHS32PosAttitude.skeletons;
+
+            if (0 == getRet)
             {
-                SingleSkeletonDef leftThumb1 = KHHS42PosAttitude.skeletons[KHHS42_LeftHandThumb1];
-                SingleSkeletonDef leftThumb2 = KHHS42PosAttitude.skeletons[KHHS42_LeftHandThumb2];
-                SingleSkeletonDef leftThumb3 = KHHS42PosAttitude.skeletons[KHHS42_LeftHandThumb3];
+                SingleSkeletonDef leftThumb1 = bones[isLayout42 ? KHHS42_LeftHandThumb1 : KHHS32_LeftHandThumb1];
+                SingleSkeletonDef leftThumb2 = bones[isLayout42 ? KHHS42_LeftHandThumb2 : KHHS32_LeftHandThumb2];
+                SingleSkeletonDef leftThumb3 = bones[isLayout42 ? KHHS42_LeftHandThumb3 : KHHS32_LeftHandThumb3];
                 printf("Frame [%d] Left Thumb Angles: Thumb1[%.2f, %.2f, %.2f], Thumb2[%.2f, %.2f, %.2f], Thumb3[%.2f, %.2f, %.2f]",
                     frameCounter++,
                     leftThumb1.euler_degree[0], leftThumb1.euler_degree[1], leftThumb1.euler_degree[2],
