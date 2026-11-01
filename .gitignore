@@ -71,6 +71,8 @@ Debug/
 Release/
 Temp/
 build/
+# Doxygen 生成产物（docs 下的源文件如 groups.dox、设计与计划文档需要纳入版本控制）
+docs/html/
 .vs/
 *.zip
 *.rar
@@ -91,6 +93,10 @@ JLinkLog.txt
 # 系统自动生成的文件
 .DS_Store
 Thumbs.db
+
+# Agent/工具会话的临时工作区（设计计划的中间件，不进版本控制）
+.superpowers/
+.workbuddy/
 
 # Python cache
 __pycache__/

@@ -1,0 +1,39 @@
+/**
+ * @file  groups.dox
+ * @brief Doxygen 模块分组定义（集中管理，避免分组引用指向不存在的组）。
+ *
+ * @details
+ * 各源码文件通过分组引用命令归属到下列分组；
+ * 新增分组时在此追加定义，并保持 ID 全小写下划线命名。
+ */
+
+/**
+ * @defgroup mgsdk_api 对外接口层
+ * @brief UDP 监听、新帧查询与骨骼帧获取的 C 接口（MGSDK_DLL_API 导出）。
+ */
+
+/**
+ * @defgroup mgsdk_types 数据类型
+ * @brief 帧头、骨骼数据结构与协议枚举（纯类型定义，无实现）。
+ */
+
+/**
+ * @defgroup mgsdk_decode 解码层
+ * @brief CSV 字符流解帧与 SDK 内部辅助函数。
+ */
+
+/**
+ * @defgroup mgsdk_math 数学工具
+ * @brief 欧拉角/四元数换算等纯计算组件，无全局状态，可并发调用。
+ */
+
+/**
+ * @defgroup mgsdk_sync 同步原语
+ * @brief 读写锁等线程同步工具。
+ */
+
+/**
+ * @defgroup mgsdk_examples 示例
+ * @brief SDK 使用示例程序（UDP 收帧 / 数据打印 / VTK 可视化）。
+ */
+
