@@ -30,7 +30,9 @@ src/eulerToQuat.cpp
 set(HEADER_FILES
 "include/motionGloveSDK.h"
 "include/motionGloveSDK_commonDef.h"
-"include/motionGloveSDK_HMAXGloveDef.h"
+"include/motionGloveSDK_skeleton32Def.h"
+"include/motionGloveSDK_skeleton42Def.h"
+"include/motionGloveSDK_skeletonOpenXRDef.h"
 "include/motionGloveSDKDef.h"
 inc/decodeAsGloveCSV.h
 inc/eulerToQuat.h

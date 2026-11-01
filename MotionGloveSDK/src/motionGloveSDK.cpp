@@ -1,4 +1,15 @@
-﻿#ifdef _WIN32
+/**
+ * @file  motionGloveSDK.cpp
+ * @brief SDK 对外 API 实现：UDP 接收线程、数据流缓存与骨骼帧输出。
+ * @ingroup mgsdk_api
+ *
+ * @details
+ * 本文件实现 include/motionGloveSDK.h 声明的对外接口。
+ * 线程模型：接收线程在 MotionGloveSDK_ListenUDPPort() 中启动，按数据流
+ * 名称缓存最新帧；查询/取帧接口由调用方线程触发，内部用读写锁保护缓存。
+ * 平台差异：Windows 使用 Winsock2，Linux 使用 POSIX socket。
+ */
+#ifdef _WIN32
 
 #include <windows.h>
 #include <Winsock2.h>
@@ -24,12 +35,16 @@
 #include "inc/decodeAsGloveCSV.h"
 #include "inc/readWriteLock.h"
 
+/** @brief 手套数据流管理器数组的最大条数（最多同时管理的数据流数）。 */
 #define SUIT_MGR_MAXLEN (32)
 
+/** @brief 保护 dataset 的读写锁：所有查询/新增/取帧操作需持锁访问。 */
 ReadWriteLock gloveSuitManagerLock;
 
+/** @brief 手套数据流管理器数组：按数据流名称缓存最新帧状态，条目数不超过 SUIT_MGR_MAXLEN。 */
 GloveSuitManager_TypeDef gloveSuitManager[SUIT_MGR_MAXLEN];
 
+/** @brief SDK 全局运行状态，随 UDP 打开/线程启停而更新。 */
 SDK_Status_TypeDef sdk_status = SDK_Status_None;
 
 /**
@@ -56,18 +71,25 @@ char  errorMsg[100] = { ' ' };
 WSADATA wsaData;
 #endif
 
+/** @brief 单数据流的"新帧待取"标记：接收线程置位，取帧后复位。 */
 bool isNewPosePending = false;
+/** @brief 已接收但尚未取走的新帧计数。 */
 int newPoseCount = 0;
 
-//lock
+/**
+ * @brief Global mutex protecting shared state.
+ * @brief (中文) 保护共享状态的全局互斥锁
+ */
 #ifdef _WIN32
 CRITICAL_SECTION m_cs;
 #else
 pthread_mutex_t m_cs = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
-KHHS32PosAttitude_TypeDef KHHS32PosAttitude;
+/** @brief 最近一帧完整骨骼姿态数据的全局暂存区（收包线程写入）。 */
+KHHS42PosAttitude_TypeDef KHHS42PosAttitude;
 
+/** @brief 清空全部数据流管理器条目（逐条持写锁 memset），仅在接收线程启动时调用。 */
 void resetGloveSuitManager()
 {
 	int arrLen = sizeof(gloveSuitManager) / sizeof(gloveSuitManager[0]);
@@ -79,14 +101,21 @@ void resetGloveSuitManager()
 	}
 }
 
-/*
-清空容器
-*/
-void resetKHHS32PosAttitude(KHHS32PosAttitude_TypeDef* input)
+/**
+ * @brief 清空一帧骨骼姿态数据（整帧 memset 清零）。
+ * @param input [in,out] 待清零的帧数据指针，可为空（由调用方保证有效性）。
+ */
+void resetKHHS42PosAttitude(KHHS42PosAttitude_TypeDef* input)
 {
-	memset((void*)input, 0x00, sizeof(KHHS32PosAttitude_TypeDef));
+	memset((void*)input, 0x00, sizeof(KHHS42PosAttitude_TypeDef));
 }
 
+/**
+ * @brief 接收线程入口：清空管理器后进入 recvfrom 循环，
+ *        按帧头解析数据流、更新"新帧待取"标记与最新帧暂存区。
+ * @param lpParam [in] 线程参数，当前未使用，固定传 NULL。
+ * @return Windows 分支返回线程退出码 0；Linux 分支返回 NULL。
+ */
 //thread function
 #ifdef _WIN32
 static DWORD WINAPI ThreadProc(LPVOID lpParam)
@@ -145,22 +174,21 @@ static void* ThreadProc(void* lpParam)
 		{
 			rxBuffer[nRet] = 0;
 #ifdef _WIN32
-			KHHS32PosAttitude.remoteIP[0] = from.sin_addr.S_un.S_un_b.s_b1;
-			KHHS32PosAttitude.remoteIP[1] = from.sin_addr.S_un.S_un_b.s_b2;
-			KHHS32PosAttitude.remoteIP[2] = from.sin_addr.S_un.S_un_b.s_b3;
-			KHHS32PosAttitude.remoteIP[3] = from.sin_addr.S_un.S_un_b.s_b4;
+			KHHS42PosAttitude.remoteIP[0] = from.sin_addr.S_un.S_un_b.s_b1;
+			KHHS42PosAttitude.remoteIP[1] = from.sin_addr.S_un.S_un_b.s_b2;
+			KHHS42PosAttitude.remoteIP[2] = from.sin_addr.S_un.S_un_b.s_b3;
+			KHHS42PosAttitude.remoteIP[3] = from.sin_addr.S_un.S_un_b.s_b4;
 #else
 			// Linux下IP地址处理
 			uint32_t ip = ntohl(from.sin_addr.s_addr);
-			KHHS32PosAttitude.remoteIP[0] = (ip >> 24) & 0xFF;
-			KHHS32PosAttitude.remoteIP[1] = (ip >> 16) & 0xFF;
-			KHHS32PosAttitude.remoteIP[2] = (ip >> 8) & 0xFF;
-			KHHS32PosAttitude.remoteIP[3] = ip & 0xFF;
+			KHHS42PosAttitude.remoteIP[0] = (ip >> 24) & 0xFF;
+			KHHS42PosAttitude.remoteIP[1] = (ip >> 16) & 0xFF;
+			KHHS42PosAttitude.remoteIP[2] = (ip >> 8) & 0xFF;
+			KHHS42PosAttitude.remoteIP[3] = ip & 0xFF;
 #endif
 
-			KHHS32PosAttitude.remotePort = from.sin_port;
-			KHHS32PosAttitude.sdkVersion = MotionGloveSDK_getVersion();
-
+			KHHS42PosAttitude.remotePort = from.sin_port;
+			KHHS42PosAttitude.sdkVersion = MotionGloveSDK_getVersion();
 			//printf("FrameLength:%d Bytes\r\n", nRet);
 			if (0 == isFrameCSVFormat(rxBuffer))
 			{
@@ -169,8 +197,8 @@ static void* ThreadProc(void* lpParam)
 				*/
 				if (0 == isFrameCSV_Glove(rxBuffer))
 				{
-					KHHS32PosAttitude_TypeDef kpa;
-					resetKHHS32PosAttitude(&kpa);
+					KHHS42PosAttitude_TypeDef kpa;
+					resetKHHS42PosAttitude(&kpa);
 
 #ifdef _WIN32
 					kpa.remoteIP[0] = from.sin_addr.S_un.S_un_b.s_b1;
@@ -190,7 +218,7 @@ static void* ThreadProc(void* lpParam)
 					int decodeRet = decodeAsGloveCSV_Func(rxBuffer,
 						&kpa.hdr, 
 						kpa.skeletons,
-						KHHS32_SkeletonCount);
+						KHHS42_SkeletonCount);
 					if (decodeRet == -1)
 						continue;
 					if (kpa.hdr.leftFigureSkeletonCount == 0)
@@ -208,10 +236,10 @@ static void* ThreadProc(void* lpParam)
 					{
 						gloveSuitManagerLock.writeLock();
 						/*找到了名称相同的容器*/
-						resetKHHS32PosAttitude(&gloveSuitManager[index].KHHS32PosAttitude);
+						resetKHHS42PosAttitude(&gloveSuitManager[index].posAttitude42);
 						
 						/*拷贝一次*/
-						memcpy(&gloveSuitManager[index].KHHS32PosAttitude, &kpa, sizeof(KHHS32PosAttitude_TypeDef));
+						memcpy(&gloveSuitManager[index].posAttitude42, &kpa, sizeof(KHHS42PosAttitude_TypeDef));
 						//printf("fn:%d\r\n", kpa.hdr.frameNumber);
 						gloveSuitManager[index].isNewFramePending = 1;
 						gloveSuitManagerLock.writeUnLock();
@@ -274,12 +302,17 @@ static void* ThreadProc(void* lpParam)
 #endif
 }
 
+/** @brief 接收线程句柄（Windows 为 HANDLE，Linux 为 pthread_t），由这个文件唯一创建与销毁。 */
 #ifdef _WIN32
 HANDLE hThreadProc = nullptr;
 #else
 pthread_t hThreadProc = 0;
 #endif
 
+/**
+ * @brief 打印占用指定 UDP 端口的进程信息（仅 Windows：netstat 查 PID 并枚举进程名）。
+ * @param nPort 被占用的端口号。
+ */
 static void MotionGloveSDK_PrintUDPPortOccupier(int nPort)
 {
 #ifdef _WIN32
@@ -388,6 +421,12 @@ static void MotionGloveSDK_PrintUDPPortOccupier(int nPort)
 #endif
 }
 
+/**
+ * @brief 关闭旧套接字并重新创建、绑定 UDP 套接字到本地端口。
+ * @param local 待绑定的本地地址结构（INADDR_ANY 表示任意网卡）。
+ * @param nPort 绑定的本地端口号。
+ * @return 0 绑定成功；-1 创建/绑定失败。
+ */
 static int MotionGloveSDK_ReopenAndBindSocket(const struct sockaddr_in* local, int nPort)
 {
 #ifdef _WIN32
@@ -659,7 +698,7 @@ bool MotionGloveSDK_resetGloveNewFramePending(const char* actorName)
 	return ret;
 }
 
-int  MotionGloveSDK_GetGloveSkeletonsFrame(const char* actorName, KHHS32PosAttitude_TypeDef* pKHHS32PosAttitude)
+int  MotionGloveSDK_GetGloveSkeletonsFrame(const char* actorName, KHHS42PosAttitude_TypeDef* pKHHS42PosAttitude)
 {
 	int ret = -1;
 	int actualNameLen = 0;
@@ -677,7 +716,7 @@ int  MotionGloveSDK_GetGloveSkeletonsFrame(const char* actorName, KHHS32PosAttit
 	if (actualNameLen == 0)
 		return ret;
 	
-	if (0 == pKHHS32PosAttitude)
+	if (0 == pKHHS42PosAttitude)
 	{
 		return -1;
 	}
@@ -686,7 +725,9 @@ int  MotionGloveSDK_GetGloveSkeletonsFrame(const char* actorName, KHHS32PosAttit
 	if (index != -1)
 	{
 		gloveSuitManagerLock.readLock();
-		memcpy((uint8_t*)pKHHS32PosAttitude, (uint8_t*)&gloveSuitManager[index].KHHS32PosAttitude, sizeof(KHHS32PosAttitude_TypeDef));
+		memcpy((uint8_t*)pKHHS42PosAttitude, 
+			(uint8_t*)&gloveSuitManager[index].posAttitude42,
+			sizeof(KHHS42PosAttitude_TypeDef));
 		gloveSuitManagerLock.readUnLock();
 	}
 
