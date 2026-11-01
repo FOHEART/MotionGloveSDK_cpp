@@ -1,104 +1,61 @@
-# Prerequisites
+# ── C/C++ 编译中间产物 ──────────────────────────────────────────
 *.d
-
-# Compiled Object files
-*.slo
-*.lo
 *.o
 *.obj
-
-# Precompiled Headers
+*.slo
+*.lo
 *.gch
 *.pch
-
-# Linker files
 *.ilk
-
-# Debugger Files
 *.pdb
+*.dwo
 
-# Compiled Dynamic libraries
+# ── 库与可执行文件 ──────────────────────────────────────────────
 *.so
 *.dylib
 *.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
 *.a
+*.la
+*.lai
 *.lib
-
-# Executables
 *.exe
 *.out
 *.app
 
-# debug information files
-*.dwo
-# Keil 用户特定配置文件 (因电脑而异，必须忽略)
-*.uvoptx
-*.uvguix.*
-*.uvgui.*
-*.uvproj.user
-*.uvoptx.user
-
-# Keil 编译输出和中间文件
-*.o
-*.obj
-*.axf
-*.hex
-*.bin
-*.map
-*.lst
-*.lnp
-*.crf
-*.d
-*.dep
-*.plg
-*.sct
-*.iex
-
-# Keil 默认输出目录
-libs/
+# ── 构建输出目录 ────────────────────────────────────────────────
 out/
-Objects/
-Listings/
-Debug/
-Release/
-Temp/
 build/
-# Doxygen 生成产物（docs 下的源文件如 groups.dox、设计与计划文档需要纳入版本控制）
+
+# ── Doxygen 生成产物 ────────────────────────────────────────────
+# 只忽略 HTML 产物；docs 下的源文件（groups.dox、设计与计划文档）需要纳入版本控制
 docs/html/
+
+# ── IDE ────────────────────────────────────────────────────────
 .vs/
+.vscode/
+# 但保留共享的 VSCode 设置
+!.vscode/settings.json
+
+# ── 压缩包 ──────────────────────────────────────────────────────
 *.zip
 *.rar
 
-# 临时文件和日志
+# ── 临时文件与日志 ──────────────────────────────────────────────
 *.bak
 *.tmp
 *.swp
 *~
 *.log
-JLinkLog.txt
 
-# 其他IDE或工具生成的文件（如VSCode）
-.vscode/
-# 但可以保留共享的VSCode设置（可选）
-!.vscode/settings.json
-
-# 系统自动生成的文件
-.DS_Store
-Thumbs.db
-
-# Agent/工具会话的临时工作区（设计计划的中间件，不进版本控制）
+# ── Agent / 工具的会话临时工作区 ────────────────────────────────
 .superpowers/
 .workbuddy/
 
-# Python cache
+# ── 系统自动生成的文件 ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Python cache ────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
