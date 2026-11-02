@@ -213,6 +213,17 @@ cmake --build out/build/x64-Release --config Release
 
 示例可执行文件生成在各自的 `out/build/x64-Debug/` 或 `out/build/x64-Release/` 目录下。
 
+一键构建脚本（`[Windows]build_vs2022.bat` / `[Windows]build_vs2026.bat`）还会把示例程序和
+它们依赖的 DLL 汇总到 `out/install_example/`，按配置分开存放：
+
+```
+out/install_example/
+├── x64-Debug/      # Debug 版示例 + MotionGloveSDK.dll + VTK 运行库（若启用 VTK）
+└── x64-Release/    # Release 版示例 + 同上
+```
+
+这两个目录都是自带运行库的“开箱即用”副本，解压/拷贝到别处也能直接运行示例。
+
 ---
 
 ## 发布（打 tag 即发布 Release）

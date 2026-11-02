@@ -7,7 +7,7 @@ set "GENERATOR=Visual Studio 18 2026"
 set "VS_TAG=Visual Studio 2026"
 set "VTK_ENABLED=0"
 
-echo [1/4] 准备 VTK（供 motionGloveSDK_example_vtk 使用，可选）...
+echo [1/5] 准备 VTK（供 motionGloveSDK_example_vtk 使用，可选）...
 call "%~dp0tools\setup_vtk.bat"
 if not errorlevel 1 (
     set "VTK_ENABLED=1"
@@ -17,7 +17,7 @@ if not errorlevel 1 (
     set "VTK_ARGS=-DBUILD_VTK_EXAMPLE=OFF"
 )
 
-echo [2/4] Generating %VS_TAG% project (Debug)...
+echo [2/5] Generating %VS_TAG% project (Debug)...
 call :configure_and_build Debug x64-Debug
 if errorlevel 1 goto :build_failed
 
@@ -27,7 +27,7 @@ if errorlevel 1 (
     goto :build_failed
 )
 
-echo [3/4] Generating %VS_TAG% project (Release)...
+echo [3/5] Generating %VS_TAG% project (Release)...
 call :configure_and_build Release x64-Release
 if errorlevel 1 goto :build_failed
 
@@ -37,13 +37,44 @@ if errorlevel 1 (
     goto :build_failed
 )
 
-echo [4/4] All builds completed.
+echo [4/5] 汇总示例程序与运行库到 out\install_example...
+call :collect_examples Debug
+call :collect_examples Release
+
+echo [5/5] All builds completed.
 if "%VTK_ENABLED%"=="1" (
     echo VTK 示例输出：out\build\x64-Debug\Debug\ 与 out\build\x64-Release\Release\
     echo 依赖的 VTK 运行库已复制到同目录，可直接运行 motionGloveSDK_example_vtk.exe
 ) else (
     echo VTK 示例未编译。可参考 README「可选：VTK 3D 可视化示例」章节手动安装 VTK。
 )
+echo 可直接运行的示例目录：out\install_example\x64-Debug\ 与 out\install_example\x64-Release\
+exit /b 0
+
+REM ── 把某个配置的示例 exe 与其依赖 DLL 汇总到 out\install_example\x64-<配置> ──
+:collect_examples
+set "CFG=%~1"
+set "SRC=out\build\x64-%CFG%\%CFG%"
+set "DST=out\install_example\x64-%CFG%"
+if not exist "%SRC%" (
+    echo [WARN] 未找到 %SRC%，跳过 %CFG% 示例汇总。
+    exit /b 0
+)
+if exist "%DST%" rd /s /q "%DST%"
+md "%DST%" 2>nul
+
+copy /y "%SRC%\*.exe" "%DST%\" >nul
+if errorlevel 1 (
+    echo [WARN] %SRC% 下没有示例可执行文件，跳过 %CFG% 示例汇总。
+    exit /b 0
+)
+copy /y "%SRC%\*.dll" "%DST%\" >nul 2>nul
+
+set "EXE_COUNT=0"
+set "DLL_COUNT=0"
+for %%F in ("%DST%\*.exe") do set /a EXE_COUNT+=1
+for %%F in ("%DST%\*.dll") do set /a DLL_COUNT+=1
+echo    %DST%：!EXE_COUNT! 个示例，!DLL_COUNT! 个 DLL
 exit /b 0
 
 REM ── 配置并构建指定配置；若 VTK 导致失败，则退回不编译 VTK 示例后重试 ──────
