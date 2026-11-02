@@ -47,9 +47,9 @@ if(BUILD_VTK_EXAMPLE)
 endif()
 
 # 查找所有匹配特定模式（例如 *example*.cpp）的源文件
-# VTK example is excluded here and handled separately below
+# 其中 motionGloveSDK_example_vtk.cpp 需要 VTK：由 BUILD_VTK_EXAMPLE 控制是否编译，
+# 其余示例始终编译。
 file(GLOB MAIN_SOURCES "MotionGloveSDK_examples/src/*example*.cpp")
-list(FILTER MAIN_SOURCES EXCLUDE REGEX ".*_vtk\\.cpp$")
 
 # 提示用户输入或选择MotionGloveSDK库的根目录
 set(MotionGloveSDK_ROOT "${CMAKE_SOURCE_DIR}/MotionGloveSDK" CACHE PATH "根目录路径（包含include、lib等子目录）")
@@ -66,6 +66,17 @@ foreach(source_file IN LISTS MAIN_SOURCES)
    
     # 获取不带路径和扩展名的纯文件名
     get_filename_component(executable_name ${source_file} NAME_WE)
+
+    # motionGloveSDK_example_vtk 依赖 VTK，未开启 BUILD_VTK_EXAMPLE 时跳过
+    set(_needs_vtk FALSE)
+    if(source_file MATCHES ".*_vtk\\.cpp$")
+        set(_needs_vtk TRUE)
+        if(NOT BUILD_VTK_EXAMPLE)
+            message(STATUS "Skipped executable target: ${executable_name} (需要 -DBUILD_VTK_EXAMPLE=ON)")
+            continue()
+        endif()
+    endif()
+
      # 在循环内打印当前添加的目标名
     message(STATUS "Added executable target: ${executable_name}")
     # 为每个源文件创建一个可执行目标
@@ -86,6 +97,15 @@ foreach(source_file IN LISTS MAIN_SOURCES)
     # 引入MotionGloveSDK库
     target_link_libraries(${executable_name} PRIVATE MotionGloveSDK)
     target_include_directories(${executable_name} PRIVATE "${MotionGloveSDK_ROOT}/include" "${MGSDK_EXAMPLE_INCLUDE_DIR}")
+
+    # VTK 示例额外链接 VTK 模块；autoinit 宏负责把工厂/渲染模块接起来
+    if(_needs_vtk)
+        target_link_libraries(${executable_name} PRIVATE ${VTK_LIBRARIES})
+        vtk_module_autoinit(
+            TARGETS ${executable_name}
+            MODULES ${VTK_LIBRARIES}
+        )
+    endif()
 
     # add_library(MotionGloveSDK SHARED IMPORTED) 根据配置不同引入不同的库和dll
    
@@ -113,51 +133,9 @@ foreach(source_file IN LISTS MAIN_SOURCES)
             "$<TARGET_FILE:MotionGloveSDK>"
             "$<TARGET_FILE_DIR:${executable_name}>"
         )
-    elseif(UNIX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  
-    endif()
 
-endforeach()
-
-if(WIN32)
-# Make VS .vcxproj.filters mirror the real directory tree from the repo root
-source_group(TREE "${CMAKE_SOURCE_DIR}" FILES     ${SRC_FILES}    )
-endif()
-
-# ── Optional VTK 3D visualization example ──────────────────────────────────
-if(BUILD_VTK_EXAMPLE)
-    set(VTK_EXAMPLE_SRC "MotionGloveSDK_examples/src/motionGloveSDK_example_vtk.cpp")
-    set(VTK_EXAMPLE_TARGET "motionGloveSDK_example_vtk")
-
-    add_executable(${VTK_EXAMPLE_TARGET} ${VTK_EXAMPLE_SRC})
-    message(STATUS "Added executable target: ${VTK_EXAMPLE_TARGET}")
-
-    target_compile_definitions(${VTK_EXAMPLE_TARGET} PRIVATE UNICODE _UNICODE)
-
-    if(MSVC)
-        target_compile_options(${VTK_EXAMPLE_TARGET} PRIVATE /utf-8 /MP /Zc:wchar_t /D_CRT_SECURE_NO_WARNINGS)
-    else()
-        target_compile_options(${VTK_EXAMPLE_TARGET} PRIVATE -finput-charset=UTF-8 -fexec-charset=UTF-8)
-    endif()
-
-    target_link_libraries(${VTK_EXAMPLE_TARGET} PRIVATE MotionGloveSDK ${VTK_LIBRARIES})
-    target_include_directories(${VTK_EXAMPLE_TARGET} PRIVATE "${MotionGloveSDK_ROOT}/include" "${MGSDK_EXAMPLE_INCLUDE_DIR}")
-
-    # VTK requires autoinit macros to wire up factory/rendering modules
-    vtk_module_autoinit(
-        TARGETS ${VTK_EXAMPLE_TARGET}
-        MODULES ${VTK_LIBRARIES}
-    )
-
-    if(WIN32)
-        add_custom_command(TARGET ${VTK_EXAMPLE_TARGET} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:MotionGloveSDK>"
-            "$<TARGET_FILE_DIR:${VTK_EXAMPLE_TARGET}>"
-        )
-
-        # 把 VTK 模块及其第三方依赖的 DLL 复制到输出目录，示例即可脱离 PATH 直接运行。
-        if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.16)
+        # VTK 示例：把 VTK 模块及其第三方依赖的 DLL 复制到输出目录，脱离 PATH 也能直接运行。
+        if(_needs_vtk AND CMAKE_VERSION VERSION_GREATER_EQUAL 3.16)
             # VTK 9.3+ 的导入目标带命名空间，早期版本为 vtkXxx
             set(_vtk_ref_target "")
             if(TARGET VTK::RenderingCore)
@@ -181,19 +159,28 @@ if(BUILD_VTK_EXAMPLE)
             endif()
 
             if(VTK_RUNTIME_DIR)
-                add_custom_command(TARGET ${VTK_EXAMPLE_TARGET} POST_BUILD
+                add_custom_command(TARGET ${executable_name} POST_BUILD
                     COMMAND ${CMAKE_COMMAND}
-                        "-DEXE=$<TARGET_FILE:${VTK_EXAMPLE_TARGET}>"
-                        "-DDEST=$<TARGET_FILE_DIR:${VTK_EXAMPLE_TARGET}>"
+                        "-DEXE=$<TARGET_FILE:${executable_name}>"
+                        "-DDEST=$<TARGET_FILE_DIR:${executable_name}>"
                         "-DSEARCH_DIRS=${VTK_RUNTIME_DIR}"
                         -P "${CMAKE_SOURCE_DIR}/cmake/copy_runtime_dlls.cmake"
-                    COMMENT "Copying VTK runtime DLLs for ${VTK_EXAMPLE_TARGET}"
+                    COMMENT "Copying VTK runtime DLLs for ${executable_name}"
                     VERBATIM
                 )
             endif()
         endif()
+    elseif(UNIX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  
     endif()
+
+endforeach()
+
+if(WIN32)
+# Make VS .vcxproj.filters mirror the real directory tree from the repo root
+source_group(TREE "${CMAKE_SOURCE_DIR}" FILES     ${SRC_FILES}    )
 endif()
+
 
 # ── 单元测试（GoogleTest / TDD）─────────────────────────────────────────────
 # 测试目录自带 GoogleTest 接入（FetchContent），只测算纯逻辑层
