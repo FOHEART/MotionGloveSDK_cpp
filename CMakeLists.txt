@@ -28,12 +28,14 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-# Optional VTK 3D visualization example (requires VTK 9.x)
-option(BUILD_VTK_EXAMPLE "Build VTK 3D visualization example (requires VTK 9.x)" OFF)
+# VTK 3D visualization example (requires VTK 9.x)
+# 默认开启：找到 VTK 就一起编译；没装 VTK 时告警并自动跳过该示例，不影响其它目标。
+# 不想编译该示例时显式传 -DBUILD_VTK_EXAMPLE=OFF。
+option(BUILD_VTK_EXAMPLE "Build VTK 3D visualization example (requires VTK 9.x)" ON)
 if(BUILD_VTK_EXAMPLE)
     # 只请求示例实际用到的模块：既缩短链接时间，也避免依赖预编译 VTK
     # 安装包中与本示例无关的第三方模块。
-    find_package(VTK 9.0 REQUIRED COMPONENTS
+    find_package(VTK 9.0 QUIET COMPONENTS
         CommonCore
         CommonDataModel
         CommonTransforms
@@ -43,7 +45,15 @@ if(BUILD_VTK_EXAMPLE)
         RenderingOpenGL2
         RenderingUI
     )
-    message(STATUS "VTK found: ${VTK_VERSION}")
+    if(VTK_FOUND)
+        message(STATUS "VTK found: ${VTK_VERSION}")
+    else()
+        message(WARNING
+            "未找到 VTK 9.x，已自动关闭 BUILD_VTK_EXAMPLE，motionGloveSDK_example_vtk 将不编译。\n"
+            "  需要该示例时：设置 VTK_DIR 指向 vtk-config.cmake 所在目录，"
+            "或运行 tools/setup_vtk.bat（Windows）后重新配置。")
+        set(BUILD_VTK_EXAMPLE OFF)
+    endif()
 endif()
 
 # 查找所有匹配特定模式（例如 *example*.cpp）的源文件
@@ -72,7 +82,7 @@ foreach(source_file IN LISTS MAIN_SOURCES)
     if(source_file MATCHES ".*_vtk\\.cpp$")
         set(_needs_vtk TRUE)
         if(NOT BUILD_VTK_EXAMPLE)
-            message(STATUS "Skipped executable target: ${executable_name} (需要 -DBUILD_VTK_EXAMPLE=ON)")
+            message(STATUS "Skipped executable target: ${executable_name} (需要 VTK 9.x，原因见上面的提示)")
             continue()
         endif()
     endif()

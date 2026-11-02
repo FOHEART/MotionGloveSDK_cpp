@@ -37,7 +37,7 @@ MotionGloveSDK/                        # 仓库根目录
 │       ├── motionGloveSDK_example3.cpp
 │       ├── motionGloveSDK_example4.cpp
 │       ├── motionGloveSDK_example5.cpp
-│       └── motionGloveSDK_example_vtk.cpp   # 可选：-DBUILD_VTK_EXAMPLE=ON
+│       └── motionGloveSDK_example_vtk.cpp   # VTK 示例（默认编译，-DBUILD_VTK_EXAMPLE=OFF 关闭）
 │
 ├── out/                               # 构建输出（git 忽略）
 │   ├── build/x64-Debug/
@@ -130,11 +130,15 @@ cmake --build out/build/x64-Release
 cmake --install out/build/x64-Release --prefix out/install/x64-Release
 ```
 
-### 可选：VTK 3D 可视化示例（motionGloveSDK_example_vtk）
+### VTK 3D 可视化示例（motionGloveSDK_example_vtk）
 
 该示例会在启动时打开一个 VTK 3D 窗口，并绑定本机 UDP `5001` 端口接收手套骨骼数据（32 段）。
 窗口里原点处绘制了三色坐标轴（X 红 / Y 绿 / Z 蓝）与 XZ 平面的地平面网格
 （格距 0.1 m，范围 50 cm × 50 cm），作为位置参考。
+
+**默认开启**：`BUILD_VTK_EXAMPLE` 默认为 `ON`，找到 VTK 9.x 就一起编译；
+没装 VTK 时 CMake 会打印警告并自动跳过该示例，其余目标照常构建。
+不想编译它可显式关闭：`-DBUILD_VTK_EXAMPLE=OFF`。
 
 **一键脚本会自动处理 VTK**
 
@@ -175,15 +179,15 @@ motionGloveSDK_example_vtk.exe --self-test
 
 **手动构建**
 
-- CMake 增加：`-DBUILD_VTK_EXAMPLE=ON`
-- 如果 CMake 找不到 VTK，请设置 `VTK_DIR` 指向 VTK 的 CMake 配置目录，
+- VTK 默认就会编译，无需额外开关；只想编其它示例时才加 `-DBUILD_VTK_EXAMPLE=OFF`
+- 如果 CMake 找不到 VTK（配置时会提示），请设置 `VTK_DIR` 指向 VTK 的 CMake 配置目录，
   并把 VTK 依赖库前缀加入 `CMAKE_PREFIX_PATH`（conda 布局下为 `<prefix>\Library`）
 
 例如使用脚本装好的 VTK：
 
 ```console
 cmake -S . -B out/build/x64-Release -G "Visual Studio 17 2022" -A x64 ^
-      -DCMAKE_CONFIGURATION_TYPES="Release" -DBUILD_VTK_EXAMPLE=ON ^
+      -DCMAKE_CONFIGURATION_TYPES="Release" ^
       "-DVTK_DIR=third_party/vtk/Library/lib/cmake/vtk-9.7" ^
       "-DCMAKE_PREFIX_PATH=third_party/vtk/Library"
 cmake --build out/build/x64-Release --config Release
