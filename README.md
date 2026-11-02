@@ -170,10 +170,8 @@ motionGloveSDK_example_vtk.exe --self-test
 ```
 
 只走完初始化（UDP 绑定 + VTK 场景搭建）就退出，不创建 OpenGL 上下文、不进事件循环，
-便于在无显卡的机器/CI 上确认示例能正常启动。CI 里由 `vtk-example` job
-（[.github/workflows/cmake-multi-platform.yml](./.github/workflows/cmake-multi-platform.yml)）执行：
-Windows 用 conda 预编译 VTK 编译并做启动检测（`tools\test_vtk_example_launch.ps1`），
-Linux 用 apt 的 `libvtk9-dev` 编译，并在 Xvfb + Mesa 软件渲染下真正开窗运行 15 s。
+便于在无显卡的机器/CI 上确认示例能正常启动；CI 会执行该自检并配合
+`tools\test_vtk_example_launch.ps1` 做开窗测试。
 
 **手动构建**
 
@@ -240,6 +238,31 @@ git push origin main v0.2.2
 3. 把 `out/build/x64-Release/Release` 整个目录打成 `MotionGloveSDK_example_vX.Y.Z.zip`
    （顶层直接是 exe / dll，解压即可运行，约 29 MB）；
 4. 创建 GitHub Release 并上传该 zip（重复推送同一标签会覆盖产物）。
+
+---
+
+## 源码分发包（分发给客户）
+
+`[Windows]package_source.bat`（逻辑在 [tools/package_source.ps1](./tools/package_source.ps1)）
+把当前工作区打成 `MotionGloveSDK_cpp_v<版本号>.zip`，版本号取自
+[motionGloveSDK_version.h](./MotionGloveSDK_examples/inc/motionGloveSDK_version.h)，
+也可命令行指定：`[Windows]package_source.bat 0.2.2`。
+
+压缩包内有一层顶层目录 `MotionGloveSDK_cpp_v<版本号>`，解压后可直接用
+`[Windows]build_vs2022.bat` 等脚本构建。为保证客户拿到的是“只读源码”，打包时会剔除：
+
+| 类别 | 内容 |
+| --- | --- |
+| 版本控制 | `.git/`（客户拿不到仓库地址与历史，无法 pull 你的代码）、`.gitignore` |
+| git 操作脚本 | `[Windows]git_pull_latest.cmd`、`[Linux]git_pull_latest.sh`，以及 README 里对应的说明 |
+| 内部资料 | `.github/`（CI 与 agent 配置）、`openspec/`、`docs/superpowers/`、`.vscode/` |
+| 构建产物 | `out/`、`build/`（含 `out/package` 暂存目录）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log` |
+| 本机专用 | `tools/autotools_env.bat`、打包脚本自身 |
+
+脚本打完包会自检：一旦发现残留的 `.git` 目录、git 操作脚本或脚本里的
+`git fetch/pull/clone` 命令，直接报错退出，避免内部信息被打进客户包。
+
+> 打包请在“干净”的工作区执行（先提交改动），否则包里会带上未提交的文件。
 
 ---
 

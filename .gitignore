@@ -29,8 +29,9 @@ build/
 # ── 构建脚本自动安装的第三方依赖（VTK / micromamba）───────────────
 third_party/
 
-# ── 发布产物（由 release.yml 生成）───────────────────────────────
+# ── 发布产物（由 release.yml / package_source 生成）───────────────
 MotionGloveSDK_example_v*.zip
+MotionGloveSDK_cpp_v*.zip
 
 # ── Doxygen 生成产物 ────────────────────────────────────────────
 # 只忽略 HTML 产物；docs 下的源文件（groups.dox、设计与计划文档）需要纳入版本控制
