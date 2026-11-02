@@ -71,3 +71,78 @@ jobs:
       # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest --build-config ${{ matrix.build_type }}
+
+  # ── 可选 VTK 3D 可视化示例：编译 + 启动测试 ────────────────────────────────
+  # 该示例依赖 VTK 9.x，单独成一个 job，不影响上面的主构建矩阵：
+  #   * Windows：用 tools/setup_vtk.bat 自动安装 conda-forge 预编译 VTK，编译 + 启动自检；
+  #   * Linux：用 apt 的 libvtk9-dev，并在 Xvfb + Mesa 软件渲染下真正开窗运行。
+  vtk-example:
+    name: VTK example (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure and build (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        env:
+          VTK_CONDA_CHANNEL: https://conda.anaconda.org/conda-forge
+        run: |
+          call tools\setup_vtk.bat
+          if errorlevel 1 exit /b 1
+          cmake -S . -B out/build/ci-vtk -G "Visual Studio 17 2022" -A x64 -DCMAKE_CONFIGURATION_TYPES=Release -DBUILD_TESTS=OFF -DBUILD_VTK_EXAMPLE=ON "-DVTK_DIR=%VTK_DIR%" "-DCMAKE_PREFIX_PATH=%VTK_CMAKE_PREFIX%"
+          if errorlevel 1 exit /b 1
+          cmake --build out/build/ci-vtk --config Release --target motionGloveSDK_example_vtk
+          if errorlevel 1 exit /b 1
+
+      - name: Install VTK and build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libvtk9-dev xvfb libgl1-mesa-dri
+          cmake -S . -B out/build/ci-vtk -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=OFF -DBUILD_VTK_EXAMPLE=ON
+          cmake --build out/build/ci-vtk --target motionGloveSDK_example_vtk --parallel "$(nproc)"
+
+      - name: Launch test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 8
+        # self-test 覆盖启动路径；托管 runner 只有 OpenGL 1.1 软件实现，
+        # 可能建不出 VTK 需要的 OpenGL 3.2 上下文，故窗口检测不通过时降级为警告。
+        run: ./tools/test_vtk_example_launch.ps1 -Exe out/build/ci-vtk/Release/motionGloveSDK_example_vtk.exe -AllowNoWindow
+
+      - name: Launch test (Linux, Xvfb)
+        if: runner.os == 'Linux'
+        timeout-minutes: 8
+        run: |
+          exe=out/build/ci-vtk/motionGloveSDK_example_vtk
+          chmod +x "$exe"
+
+          echo "--- self-test ---"
+          "$exe" --self-test
+
+          echo "--- 打开窗口运行 15s（timeout 返回 124 表示进程仍在运行）---"
+          set +e
+          xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX +render" timeout 15s "$exe" > /tmp/vtk-launch.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/vtk-launch.log
+
+          if grep -q 'ERROR:' /tmp/vtk-launch.log; then
+            echo "::error::VTK 运行时报错，见上面的日志"
+            exit 1
+          fi
+          if [ "$rc" -ne 124 ]; then
+            echo "::error::窗口未持续运行（退出码 $rc），启动失败"
+            exit 1
+          fi
+          echo "VTK 示例已在 Xvfb 中正常启动并持续运行。"
+

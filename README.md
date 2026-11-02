@@ -133,20 +133,76 @@ cmake --install out/build/x64-Release --prefix out/install/x64-Release
 ### 可选：VTK 3D 可视化示例（motionGloveSDK_example_vtk）
 
 该示例会在启动时打开一个 VTK 3D 窗口，并绑定本机 UDP `5001` 端口接收手套骨骼数据（32 段）。
+窗口里原点处绘制了三色坐标轴（X 红 / Y 绿 / Z 蓝）与 XZ 平面的地平面网格
+（格距 0.1 m，范围 50 cm × 50 cm），作为位置参考。
 
-**前置条件：**
+**一键脚本会自动处理 VTK**
 
-- 安装 VTK 9.x（推荐 9.0+）
+`[Windows]build_vs2022.bat` / `[Windows]build_vs2026.bat` 会调用 [tools/setup_vtk.bat](./tools/setup_vtk.bat)：
 
-**启用构建：**
+1. 若环境变量 `VTK_DIR` 指向可用的 VTK，或仓库下 `third_party\vtk` 已装好 VTK，直接复用；
+2. 否则用 conda-forge 的预编译 VTK（默认清华镜像）自动装到 `third_party\vtk`，
+   期间会把 micromamba 下载到 `third_party\micromamba`、包缓存放在 `third_party\micromamba-root`；
+3. 以 `-DBUILD_VTK_EXAMPLE=ON` 构建示例，并把 VTK 及其依赖的运行库 DLL
+   （Debug/Release 输出目录各约 130 MB、56 个文件）自动复制到可执行文件同目录，
+   因此 `motionGloveSDK_example_vtk.exe` **可直接双击运行**，无需设置 `PATH`。
+
+若 VTK 获取或编译失败，脚本只跳过该示例、其余目标照常构建（fail-soft）。
+
+`tools\setup_vtk.bat` 支持的环境变量（均可不设）：
+
+| 变量                       | 说明                                                   |
+| -------------------------- | ------------------------------------------------------ |
+| `VTK_DIR`                | 已有 VTK 的 CMake 配置目录（含 `vtk-config.cmake`）    |
+| `VTK_PREFIX`             | 自动安装 VTK 的位置，默认 `third_party\vtk`          |
+| `VTK_CONDA_CHANNEL`      | conda 频道，默认 `https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge` |
+| `VTK_CONDA_SPEC`         | 安装的包，默认 `vtk`（含 `vtk-base` + `vtk-io-ffmpeg`） |
+| `VTK_SKIP_INSTALL`       | 设为 `1` 时只复用已装 VTK，不联网                     |
+| `VTK_KEEP_PKG_CACHE`     | 设为 `1` 时保留 conda 包缓存（默认安装后清理，省数 GB） |
+| `VTK_ALLOW_INSECURE_SSL` | 设为 `1` 时关闭下载时的 SSL 校验（证书吊销列表不可达的网络） |
+
+首次自动安装约需下载 450 MB（解包后 `third_party\vtk` 约 2.2 GB），之后构建脚本直接复用。
+
+**启动自检（`--self-test`）**
+
+```console
+motionGloveSDK_example_vtk.exe --self-test
+```
+
+只走完初始化（UDP 绑定 + VTK 场景搭建）就退出，不创建 OpenGL 上下文、不进事件循环，
+便于在无显卡的机器/CI 上确认示例能正常启动。CI 里由 `vtk-example` job
+（[.github/workflows/cmake-multi-platform.yml](./.github/workflows/cmake-multi-platform.yml)）执行：
+Windows 用 conda 预编译 VTK 编译并做启动检测（`tools\test_vtk_example_launch.ps1`），
+Linux 用 apt 的 `libvtk9-dev` 编译，并在 Xvfb + Mesa 软件渲染下真正开窗运行 15 s。
+
+**手动构建**
 
 - CMake 增加：`-DBUILD_VTK_EXAMPLE=ON`
-- 如果 CMake 找不到 VTK，请设置 `VTK_DIR` 或 `CMAKE_PREFIX_PATH` 指向 VTK 的 CMake 配置目录
+- 如果 CMake 找不到 VTK，请设置 `VTK_DIR` 指向 VTK 的 CMake 配置目录，
+  并把 VTK 依赖库前缀加入 `CMAKE_PREFIX_PATH`（conda 布局下为 `<prefix>\Library`）
 
-Windows 安装 VTK 的常见方式：
+例如使用脚本装好的 VTK：
+
+```console
+cmake -S . -B out/build/x64-Release -G "Visual Studio 17 2022" -A x64 ^
+      -DCMAKE_CONFIGURATION_TYPES="Release" -DBUILD_VTK_EXAMPLE=ON ^
+      "-DVTK_DIR=third_party/vtk/Library/lib/cmake/vtk-9.7" ^
+      "-DCMAKE_PREFIX_PATH=third_party/vtk/Library"
+cmake --build out/build/x64-Release --config Release
+```
+
+其他安装 VTK 的方式：
 
 - 使用 vcpkg 安装（需要配置 toolchain file）
-- 使用 VTK 官方预编译安装包，或自行从源码编译安装
+- 使用 VTK 官方源码包自行编译安装
+
+> 说明：Windows 下 CMake 在 POST_BUILD 阶段会用
+> [cmake/copy_runtime_dlls.cmake](./cmake/copy_runtime_dlls.cmake) 把示例依赖的
+> 运行库 DLL 复制到 exe 同目录，手动构建同样可以直接双击运行。
+>
+> conda-forge 的 VTK 只有 Release 版，Debug 配置可以链接，但运行 Debug 版示例时
+> 会混用 Release CRT，如遇异常请改用 Release 版示例。
+
 
 ---
 
