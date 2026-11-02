@@ -475,6 +475,8 @@ static int MotionGloveSDK_ReopenAndBindSocket(const struct sockaddr_in* local, i
 #else
 	if (socketObj != -1)
 	{
+		/* close() 唤醒不了阻塞在 recvfrom 的接收线程，先 shutdown()（同 CloseUDPPort） */
+		shutdown(socketObj, SHUT_RDWR);
 		close(socketObj);
 		socketObj = -1;
 	}
@@ -649,6 +651,9 @@ int MotionGloveSDK_CloseUDPPort(void)
 #else
 		if (socketObj != -1)
 		{
+			/* Linux 下 close() 不会唤醒阻塞在 recvfrom 的接收线程，
+			   先用 shutdown() 让它返回，否则下面的 pthread_join 会永久阻塞 */
+			shutdown(socketObj, SHUT_RDWR);
 			close(socketObj);
 			socketObj = -1;
 			hasClosedSocket = true;

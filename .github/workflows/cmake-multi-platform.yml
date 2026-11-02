@@ -97,7 +97,8 @@ jobs:
         run: |
           call tools\setup_vtk.bat
           if errorlevel 1 exit /b 1
-          cmake -S . -B out/build/ci-vtk -G "Visual Studio 17 2022" -A x64 -DCMAKE_CONFIGURATION_TYPES=Release -DBUILD_TESTS=OFF -DBUILD_VTK_EXAMPLE=ON "-DVTK_DIR=%VTK_DIR%" "-DCMAKE_PREFIX_PATH=%VTK_CMAKE_PREFIX%"
+          rem 不指定 -G：windows-latest 镜像在 VS2022/VS2026 之间变动，交给 CMake 自动选择
+          cmake -S . -B out/build/ci-vtk -A x64 -DCMAKE_CONFIGURATION_TYPES=Release -DBUILD_TESTS=OFF -DBUILD_VTK_EXAMPLE=ON "-DVTK_DIR=%VTK_DIR%" "-DCMAKE_PREFIX_PATH=%VTK_CMAKE_PREFIX%"
           if errorlevel 1 exit /b 1
           cmake --build out/build/ci-vtk --config Release --target motionGloveSDK_example_vtk
           if errorlevel 1 exit /b 1
@@ -126,12 +127,19 @@ jobs:
           exe=out/build/ci-vtk/motionGloveSDK_example_vtk
           chmod +x "$exe"
 
-          echo "--- self-test ---"
-          "$exe" --self-test
+          echo "--- self-test：初始化 + 关闭端口（最多 60s）---"
+          set +e
+          stdbuf -o0 -e0 timeout 60s "$exe" --self-test 2>&1 | tee /tmp/vtk-selftest.log
+          st_rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$st_rc" -ne 0 ]; then
+            echo "::error::self-test 失败或超时（退出码 $st_rc）"
+            exit 1
+          fi
 
           echo "--- 打开窗口运行 15s（timeout 返回 124 表示进程仍在运行）---"
           set +e
-          xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX +render" timeout 15s "$exe" > /tmp/vtk-launch.log 2>&1
+          xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX +render" stdbuf -o0 -e0 timeout 15s "$exe" > /tmp/vtk-launch.log 2>&1
           rc=$?
           set -e
           cat /tmp/vtk-launch.log
