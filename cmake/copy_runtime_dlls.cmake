@@ -13,6 +13,10 @@ if(NOT EXISTS "${EXE}")
     return()
 endif()
 
+if(POLICY CMP0207)
+    cmake_policy(SET CMP0207 NEW)
+endif()
+
 get_filename_component(_dest_dir "${DEST}" ABSOLUTE)
 get_filename_component(_exe_name "${EXE}" NAME)
 
