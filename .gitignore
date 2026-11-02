@@ -26,6 +26,9 @@
 out/
 build/
 
+# ── 构建脚本自动安装的第三方依赖（VTK / micromamba）───────────────
+third_party/
+
 # ── Doxygen 生成产物 ────────────────────────────────────────────
 # 只忽略 HTML 产物；docs 下的源文件（groups.dox、设计与计划文档）需要纳入版本控制
 docs/html/
@@ -51,6 +54,7 @@ docs/html/
 .superpowers/
 .workbuddy/
 
+third_party/
 # ── 系统自动生成的文件 ──────────────────────────────────────────
 .DS_Store
 Thumbs.db

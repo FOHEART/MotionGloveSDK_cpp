@@ -6,9 +6,16 @@
  * @details
  * 需要 BUILD_VTK_EXAMPLE=ON 且系统安装 VTK 9.x。演示把 SDK 取回的
  * 42 段骨骼姿态映射为 VTK 场景中的几何体（圆柱/球），并用
- * vtkInteractorStyleTrackballCamera 提供交互视角。
+ * vtkInteractorStyleTrackballCamera 提供交互视角。原点处绘制三色坐标轴
+ * （X 红 / Y 绿 / Z 蓝）与 XZ 平面的地平面网格，作为位置参考。
+ *
+ * 命令行参数：
+ *   --self-test   只执行初始化（UDP 绑定 + 场景搭建）后退出，用于 CI 启动自检。
  */
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 
@@ -16,16 +23,22 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 #include "motionGloveSDK.h"
 
 #include <vtkActor.h>
+#include <vtkActorCollection.h>
+#include <vtkArrowSource.h>
 #include <vtkCallbackCommand.h>
 #include <vtkCamera.h>
+#include <vtkCellArray.h>
 #include <vtkCommand.h>
 #include <vtkCylinderSource.h>
 #include <vtkInteractorStyleTrackballCamera.h>
+#include <vtkPoints.h>
+#include <vtkPolyData.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
 #include <vtkRenderWindow.h>
@@ -71,6 +84,83 @@ static std::array<std::array<double, 3>, KHHS32_SkeletonCount> BuildFallbackPosi
     setHand(KHHS32_LeftHand, -0.080, 0.000, 0.000, -1.0);
 
     return p;
+}
+
+/** @brief 地平面网格的格距，单位米。 */
+static const double kGridCellMeter = 0.1;
+/** @brief 地平面网格的半边长，单位米（0.25 m 即 50 x 50 cm 的范围）。 */
+static const double kGridHalfExtentMeter = 0.25;
+/** @brief 原点坐标轴箭头的长度，单位米。 */
+static const double kAxisLengthMeter = 0.1;
+
+/**
+ * @brief 构建 XZ 平面（y = 0）上的地平面网格线。
+ * @details 网格间距 0.1 m，范围 X/Z 各 50 cm（-0.25 m ~ +0.25 m），
+ *          共 6 x 6 条线段，端点落在 0.1 m 的整数倍偏移上。
+ * @return 只包含线段单元的网格 vtkPolyData。
+ */
+static vtkSmartPointer<vtkPolyData> BuildGroundGrid()
+{
+    auto points = vtkSmartPointer<vtkPoints>::New();
+    auto lines = vtkSmartPointer<vtkCellArray>::New();
+
+    const int lineCount = static_cast<int>(std::lround((2.0 * kGridHalfExtentMeter) / kGridCellMeter)) + 1;
+
+    for (int i = 0; i < lineCount; ++i)
+    {
+        const double offset = -kGridHalfExtentMeter + i * kGridCellMeter;
+
+        // 沿 Z 方向的一条线
+        const vtkIdType zStart = points->InsertNextPoint(offset, 0.0, -kGridHalfExtentMeter);
+        const vtkIdType zEnd = points->InsertNextPoint(offset, 0.0, kGridHalfExtentMeter);
+        const vtkIdType zLine[2] = { zStart, zEnd };
+        lines->InsertNextCell(2, zLine);
+
+        // 沿 X 方向的一条线
+        const vtkIdType xStart = points->InsertNextPoint(-kGridHalfExtentMeter, 0.0, offset);
+        const vtkIdType xEnd = points->InsertNextPoint(kGridHalfExtentMeter, 0.0, offset);
+        const vtkIdType xLine[2] = { xStart, xEnd };
+        lines->InsertNextCell(2, xLine);
+    }
+
+    auto grid = vtkSmartPointer<vtkPolyData>::New();
+    grid->SetPoints(points);
+    grid->SetLines(lines);
+    return grid;
+}
+
+/**
+ * @brief 创建一条从原点出发的坐标轴箭头。
+ * @details vtkArrowSource 默认沿 +X、长度为 1，这里先按长度缩放，
+ *          再绕给定轴旋转到目标方向（Y 轴绕 Z 转 90°，Z 轴绕 Y 转 -90°）。
+ * @param rgb [in] 箭头颜色，分量范围 0~1。
+ * @param angleDeg [in] 旋转角，单位度。
+ * @param ax/ay/az [in] 旋转轴（归一化与否均可）。
+ * @return 带颜色、长度与朝向的箭头 actor。
+ */
+static vtkSmartPointer<vtkActor> CreateAxisActor(const double rgb[3],
+                                                 double angleDeg, double ax, double ay, double az)
+{
+    auto arrow = vtkSmartPointer<vtkArrowSource>::New();
+    arrow->SetTipResolution(24);
+    arrow->SetShaftResolution(24);
+    arrow->SetTipLength(0.25);
+    arrow->SetTipRadius(0.08);
+    arrow->SetShaftRadius(0.02);
+
+    auto mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+    mapper->SetInputConnection(arrow->GetOutputPort());
+
+    auto transform = vtkSmartPointer<vtkTransform>::New();
+    transform->PostMultiply();
+    transform->Scale(kAxisLengthMeter, kAxisLengthMeter, kAxisLengthMeter);
+    transform->RotateWXYZ(angleDeg, ax, ay, az);
+
+    auto actor = vtkSmartPointer<vtkActor>::New();
+    actor->SetMapper(mapper);
+    actor->SetUserTransform(transform);
+    actor->GetProperty()->SetColor(rgb[0], rgb[1], rgb[2]);
+    return actor;
 }
 
 /**
@@ -281,15 +371,22 @@ static void OnKeyPress(vtkObject* caller, unsigned long eventId, void* clientDat
 
 /**
  * @brief 程序入口：绑定 UDP 端口后启动 VTK 3D 窗口，实时渲染 42 段手部骨骼。
- * @param argc [in] 命令行参数个数（未使用）。
- * @param argv [in] 命令行参数数组（未使用）。
+ * @details 支持 `--self-test`：只走完初始化路径（UDP 绑定 + VTK 场景搭建）就退出，
+ *          不创建 OpenGL 上下文、不进事件循环，便于在无显卡的 CI 环境做启动自检。
+ * @param argc [in] 命令行参数个数。
+ * @param argv [in] 命令行参数数组。
  * @return 0 表示正常退出；1 表示 UDP 绑定失败。
  */
 int main(int argc, char* argv[])
 {
-    (void)argc;
-    (void)argv;
-
+    bool selfTest = false;
+    for (int i = 1; i < argc; ++i)
+    {
+        if (std::strcmp(argv[i], "--self-test") == 0)
+        {
+            selfTest = true;
+        }
+    }
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
@@ -306,6 +403,24 @@ int main(int argc, char* argv[])
     // VTK window should appear immediately, even before any glove frame is received.
     auto renderer = vtkSmartPointer<vtkRenderer>::New();
     renderer->SetBackground(0.08, 0.08, 0.10);
+
+    // 原点参考系：XZ 平面（y = 0）的地平面网格 + 三色坐标轴（X 红 / Y 绿 / Z 蓝）。
+    const double axisColorX[3] = { 0.90, 0.25, 0.25 };
+    const double axisColorY[3] = { 0.25, 0.85, 0.30 };
+    const double axisColorZ[3] = { 0.30, 0.50, 1.00 };
+
+    auto gridMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+    gridMapper->SetInputData(BuildGroundGrid());
+
+    auto gridActor = vtkSmartPointer<vtkActor>::New();
+    gridActor->SetMapper(gridMapper);
+    gridActor->GetProperty()->SetColor(0.45, 0.45, 0.50);
+    gridActor->GetProperty()->SetLineWidth(1.0f);
+    renderer->AddActor(gridActor);
+
+    renderer->AddActor(CreateAxisActor(axisColorX, 0.0, 0.0, 0.0, 1.0));
+    renderer->AddActor(CreateAxisActor(axisColorY, 90.0, 0.0, 0.0, 1.0));
+    renderer->AddActor(CreateAxisActor(axisColorZ, -90.0, 0.0, 1.0, 0.0));
 
     auto renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
     renderWindow->AddRenderer(renderer);
@@ -356,6 +471,12 @@ int main(int argc, char* argv[])
         renderer->AddActor(actors[i]);
     }
 
+    // 以 Y 轴为竖直方向，从斜上方俯视原点，便于看清地平面网格与三条坐标轴。
+    auto camera = renderer->GetActiveCamera();
+    camera->SetPosition(0.45, 0.35, 0.45);
+    camera->SetFocalPoint(0.0, 0.0, 0.0);
+    camera->SetViewUp(0.0, 1.0, 0.0);
+
     renderer->ResetCamera();
 
     // Exit handlers: close UDP port on window close or 'Q'.
@@ -365,7 +486,8 @@ int main(int argc, char* argv[])
     auto keyCb = vtkSmartPointer<vtkCallbackCommand>::New();
     keyCb->SetCallback(OnKeyPress);
 
-    renderWindow->AddObserver(vtkCommand::WindowCloseEvent, exitCb);
+    // Closing the render window makes the interactor fire ExitEvent, so a single
+    // observer on the interactor covers both window close and the 'Q' key.
     interactor->AddObserver(vtkCommand::ExitEvent, exitCb);
     interactor->AddObserver(vtkCommand::KeyPressEvent, keyCb);
 
@@ -376,6 +498,15 @@ int main(int argc, char* argv[])
     timerCb->SetFallbackPositions(&fallbackPositions);
 
     interactor->AddObserver(vtkCommand::TimerEvent, timerCb);
+
+    if (selfTest)
+    {
+        // 场景已搭建完成（渲染器 / 渲染窗口 / 交互器 / 42 个骨骼 actor / 网格 / 坐标轴）。
+        printf("motionGloveSDK_example_vtk self-test: scene ready (%d skeleton actors, %d renderer actors)\n",
+               static_cast<int>(KHHS32_SkeletonCount), renderer->GetActors()->GetNumberOfItems());
+        CloseUdpPortOnce();
+        return 0;
+    }
 
     renderWindow->Render();
     interactor->Initialize();

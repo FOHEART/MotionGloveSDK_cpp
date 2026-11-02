@@ -18,7 +18,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Optional VTK 3D visualization example (requires VTK 9.x)
 option(BUILD_VTK_EXAMPLE "Build VTK 3D visualization example (requires VTK 9.x)" OFF)
 if(BUILD_VTK_EXAMPLE)
-    find_package(VTK 9.0 REQUIRED)
+    # 只请求示例实际用到的模块：既缩短链接时间，也避免依赖预编译 VTK
+    # 安装包中与本示例无关的第三方模块。
+    find_package(VTK 9.0 REQUIRED COMPONENTS
+        CommonCore
+        CommonDataModel
+        CommonTransforms
+        FiltersSources
+        InteractionStyle
+        RenderingCore
+        RenderingOpenGL2
+        RenderingUI
+    )
     message(STATUS "VTK found: ${VTK_VERSION}")
 endif()
 
@@ -128,6 +139,43 @@ if(BUILD_VTK_EXAMPLE)
             "$<TARGET_FILE:MotionGloveSDK>"
             "$<TARGET_FILE_DIR:${VTK_EXAMPLE_TARGET}>"
         )
+
+        # 把 VTK 模块及其第三方依赖的 DLL 复制到输出目录，示例即可脱离 PATH 直接运行。
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.16)
+            # VTK 9.3+ 的导入目标带命名空间，早期版本为 vtkXxx
+            set(_vtk_ref_target "")
+            if(TARGET VTK::RenderingCore)
+                set(_vtk_ref_target VTK::RenderingCore)
+            elseif(TARGET vtkRenderingCore)
+                set(_vtk_ref_target vtkRenderingCore)
+            endif()
+
+            set(VTK_RUNTIME_DIR "")
+            if(_vtk_ref_target)
+                get_target_property(_vtk_module_dll ${_vtk_ref_target} IMPORTED_LOCATION)
+                if(NOT _vtk_module_dll)
+                    get_target_property(_vtk_module_dll ${_vtk_ref_target} IMPORTED_LOCATION_RELEASE)
+                endif()
+                if(NOT _vtk_module_dll)
+                    get_target_property(_vtk_module_dll ${_vtk_ref_target} IMPORTED_LOCATION_DEBUG)
+                endif()
+                if(_vtk_module_dll)
+                    get_filename_component(VTK_RUNTIME_DIR "${_vtk_module_dll}" DIRECTORY)
+                endif()
+            endif()
+
+            if(VTK_RUNTIME_DIR)
+                add_custom_command(TARGET ${VTK_EXAMPLE_TARGET} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND}
+                        "-DEXE=$<TARGET_FILE:${VTK_EXAMPLE_TARGET}>"
+                        "-DDEST=$<TARGET_FILE_DIR:${VTK_EXAMPLE_TARGET}>"
+                        "-DSEARCH_DIRS=${VTK_RUNTIME_DIR}"
+                        -P "${CMAKE_SOURCE_DIR}/cmake/copy_runtime_dlls.cmake"
+                    COMMENT "Copying VTK runtime DLLs for ${VTK_EXAMPLE_TARGET}"
+                    VERBATIM
+                )
+            endif()
+        endif()
     endif()
 endif()
 
