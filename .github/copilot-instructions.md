@@ -21,7 +21,8 @@
 - `tools\build_and_test.bat` 自行 `call` VS2022 的 `vcvars64.bat`（硬编码 `C:\Program Files\Microsoft Visual Studio\2022\Community\...`），
   构建目录是 `out\build\tdd-tests`；`CMakeSettings.json` 用 Ninja 生成器写 `out\build\x64-Debug`，两者互不干扰，不要混用。
 - 网络受限时 GoogleTest 可用离线源码：配置时加 `-DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=D:\deps\googletest-1.14.0`。
-- VTK 示例默认编译（`BUILD_VTK_EXAMPLE=ON`），找不到 VTK 9.x 时 CMake 只告警并跳过该目标；`tools\setup_vtk.bat` 可自动装 conda-forge VTK 到 `third_party\vtk`。
+- VTK 示例默认编译（`BUILD_VTK_EXAMPLE=ON`），找不到 VTK 9.x 时 CMake 只告警并跳过该目标；`tools\setup_vtk.bat` 可自动装 conda-forge VTK 到 `third_party\vtk`，
+  且默认按最小依赖安装（`vtk-base` + `vtk-io-ffmpeg` 用 `--no-deps`，约 490 MB / 7200 文件；`VTK_FULL=1` 才是完整 2.2 GB 安装），切换模式需 `VTK_FORCE_REINSTALL=1`。
 
 ## 架构
 

@@ -8,10 +8,15 @@
       * 不包含 .github（CI 流程与内部 agent 配置）、openspec、docs/superpowers 等内部资料；
       * 不包含 git 操作脚本（[Windows]git_pull_latest.cmd / [Linux]git_pull_latest.sh），
         客户无法通过脚本拉取你的代码；
-      * 不包含构建产物与依赖缓存（out、build、third_party、docs/html、*.zip、*.log）。
+      * 不包含构建缓存（out 下的 build/package 等）、third_party、docs/html、*.zip、*.log。
 
     压缩包内有一层顶层目录 MotionGloveSDK_cpp_v<版本号>，解压后不会散落在当前目录。
     版本号取自 MotionGloveSDK_examples/inc/motionGloveSDK_version.h。
+
+    若已执行过一键构建脚本，还会把预编译产物一并放进包内的 preBuild 目录，
+    客户解压即得可直接运行的示例，无需自己再调 VTK / 工具链：
+      preBuild\install\           <- out\install（SDK 的 dll/lib/头文件，按 x64-Debug / x64-Release 分目录）
+      preBuild\install_example\   <- out\install_example（示例 exe + 运行库，按配置分目录）
 
 .PARAMETER OutputDir
     压缩包输出目录，默认仓库根目录。
@@ -19,16 +24,20 @@
 .PARAMETER Version
     覆盖版本号（默认读取版本头文件）。
 
+.PARAMETER SkipPreBuild
+    不打包 out\install 与 out\install_example（只出纯源码包）。
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools\package_source.ps1
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File tools\package_source.ps1 -Version 0.2.2
+    powershell -ExecutionPolicy Bypass -File tools\package_source.ps1 -Version 0.2.2 -SkipPreBuild
 #>
 [CmdletBinding()]
 param(
     [string]$OutputDir = '',
-    [string]$Version = ''
+    [string]$Version = '',
+    [switch]$SkipPreBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -68,7 +77,7 @@ $excludeFiles = @(
     'doxygen_warnings.log', '*.log', '*.zip', '*.7z', '*.user', 'Thumbs.db', '.DS_Store'
 )
 
-Write-Host "[1/4] 准备暂存目录：$stageDir"
+Write-Host "[1/5] 准备暂存目录：$stageDir"
 if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
 
@@ -80,7 +89,38 @@ $robocopyArgs = @(
 # robocopy 用 0~7 表示成功（存在差异/复制完成），>= 8 才是失败
 if ($LASTEXITCODE -ge 8) { throw "复制工程文件失败（robocopy 退出码 $LASTEXITCODE）" }
 
-Write-Host '[2/4] 清理 README 中仅面向内部的说明'
+Write-Host '[2/5] 复制预编译产物到包内 preBuild（install / install_example）'
+$preBuildRoot = Join-Path $stageDir 'preBuild'
+$preBuildItems = @(
+    @{ Name = 'install';         Source = Join-Path $repoRoot 'out/install' }
+    @{ Name = 'install_example'; Source = Join-Path $repoRoot 'out/install_example' }
+)
+$preBuildCopied = @()
+if ($SkipPreBuild) {
+    Write-Host '  已指定 -SkipPreBuild，跳过预编译产物'
+} else {
+    foreach ($item in $preBuildItems) {
+        if (-not (Test-Path -LiteralPath $item.Source)) {
+            Write-Host "  [WARN] 未找到 $($item.Source)，包内不含 preBuild\$($item.Name)" -ForegroundColor Yellow
+            Write-Host "         需要时先运行 [Windows]build_vs2022.bat 生成，再用 -SkipPreBuild 可跳过本步" -ForegroundColor Yellow
+            continue
+        }
+        $dst = Join-Path $preBuildRoot $item.Name
+        New-Item -ItemType Directory -Path $dst -Force | Out-Null
+        & robocopy $item.Source $dst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+        if ($LASTEXITCODE -ge 8) { throw "复制 $($item.Source) 失败（robocopy 退出码 $LASTEXITCODE）" }
+        $stat = Get-ChildItem -LiteralPath $dst -Recurse -File | Measure-Object -Property Length -Sum
+        $sizeMb = [math]::Round($stat.Sum / 1MB, 1)
+        Write-Host ("  preBuild\{0}：{1} 个文件，{2} MB" -f $item.Name, $stat.Count, $sizeMb)
+        $preBuildCopied += $item.Name
+    }
+    # 两个来源都不存在时不留空目录
+    if ($preBuildCopied.Count -eq 0 -and (Test-Path -LiteralPath $preBuildRoot)) {
+        Remove-Item -LiteralPath $preBuildRoot -Recurse -Force
+    }
+}
+
+Write-Host '[3/5] 清理 README 中仅面向内部的说明'
 $readmePath = Join-Path $stageDir 'README.md'
 if (Test-Path -LiteralPath $readmePath) {
     $readmeLines = @(Get-Content -LiteralPath $readmePath -Encoding UTF8)
@@ -109,7 +149,7 @@ if (Test-Path -LiteralPath $readmePath) {
     }
 }
 
-Write-Host '[3/4] 校验分发包里没有残留 git 相关内容'
+Write-Host '[4/5] 校验分发包里没有残留 git 相关内容'
 $leaks = @()
 $leaks += Get-ChildItem -LiteralPath $stageDir -Recurse -Force -Directory -Filter '.git*' -ErrorAction SilentlyContinue
 $leaks += Get-ChildItem -LiteralPath $stageDir -Recurse -Force -File -Filter '*git*' -ErrorAction SilentlyContinue
@@ -131,10 +171,13 @@ if ($leaks.Count -gt 0 -or $gitUses -or $readmeMentions) {
 }
 Write-Host '  未发现 .git 目录、git 操作脚本、脚本内的 git 命令或相关说明'
 
-Write-Host "[4/4] 压缩为 $zipPath"
+Write-Host "[5/5] 压缩为 $zipPath"
 if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
 $sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
 if (-not $sevenZip) { $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
+if (-not (Test-Path $sevenZip)) { $sevenZip = Join-Path ${env:ProgramFiles(x86)} '7-Zip\7z.exe' }
+# 工程内的离线工具箱（含预编译运行库时压缩量较大，7za 比 Compress-Archive 快得多）
+if (-not (Test-Path $sevenZip)) { $sevenZip = 'D:\autotools\7z\7za.exe' }
 if (Test-Path $sevenZip) {
     Push-Location $stageRoot
     & $sevenZip a -tzip -mx=5 $zipPath $packageName | Out-Null
@@ -150,5 +193,8 @@ Remove-Item -LiteralPath $stageDir -Recurse -Force
 $sizeMb = [math]::Round((Get-Item -LiteralPath $zipPath).Length / 1MB, 1)
 Write-Host "完成：$zipPath"
 Write-Host "  版本：v$Version　顶层目录：$packageName　文件数：$fileCount　大小：$sizeMb MB"
+if ($preBuildCopied.Count -gt 0) {
+    Write-Host "  包内预编译产物：preBuild\$($preBuildCopied -join '、preBuild\')"
+}
 Write-Host "  已排除目录：$($excludeDirs -join '、')"
 Write-Host "  已排除文件：$($excludeFiles -join '、')"

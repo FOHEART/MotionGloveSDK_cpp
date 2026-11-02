@@ -148,10 +148,32 @@ cmake --install out/build/x64-Release --prefix out/install/x64-Release
 2. 否则用 conda-forge 的预编译 VTK（默认清华镜像）自动装到 `third_party\vtk`，
    期间会把 micromamba 下载到 `third_party\micromamba`、包缓存放在 `third_party\micromamba-root`；
 3. 以 `-DBUILD_VTK_EXAMPLE=ON` 构建示例，并把 VTK 及其依赖的运行库 DLL
-   （Debug/Release 输出目录各约 130 MB、56 个文件）自动复制到可执行文件同目录，
+   （Debug/Release 输出目录各约 130 MB、58 个文件）自动复制到可执行文件同目录，
    因此 `motionGloveSDK_example_vtk.exe` **可直接双击运行**，无需设置 `PATH`。
 
 若 VTK 获取或编译失败，脚本只跳过该示例、其余目标照常构建（fail-soft）。
+
+**安装体积：默认只装用得到的部分**
+
+conda-forge 的 `vtk` 元包会连带拉下 python 绑定、Qt6、boost 头文件、MKL、ffmpeg 等
+（解包后约 **2.2 GB / 48000+ 文件**），而本示例只用 C++ 渲染那十来个模块。
+`tools\setup_vtk.bat` 因此默认走**最小安装**：先按正常依赖关系装第三方运行库，
+再用 `--no-deps` 只装 `vtk-base` + `vtk-io-ffmpeg` 本体，跳过上述用不到的部分：
+
+| 安装方式 | 磁盘占用 | 文件数 | 首次下载 |
+| --- | --- | --- | --- |
+| 最小安装（默认） | 约 490 MB | 约 7200 | 约 120 MB |
+| 完整安装（`VTK_FULL=1`） | 约 2.2 GB | 约 48000 | 约 450 MB |
+
+两种装的配置、编译、运行结果完全一致（示例复制的 58 个运行库 DLL 一模一样）。
+确实需要 python 绑定 / Qt 模块 / ffmpeg 编解码时，`set VTK_FULL=1` 后再跑脚本即可。
+
+已装的是完整版、想换成最小版时，必须重装（conda 无法在原前缀上"减肥"）：
+
+```console
+set VTK_FORCE_REINSTALL=1
+[Windows]build_vs2022.bat
+```
 
 `tools\setup_vtk.bat` 支持的环境变量（均可不设）：
 
@@ -160,12 +182,16 @@ cmake --install out/build/x64-Release --prefix out/install/x64-Release
 | `VTK_DIR`                | 已有 VTK 的 CMake 配置目录（含 `vtk-config.cmake`）    |
 | `VTK_PREFIX`             | 自动安装 VTK 的位置，默认 `third_party\vtk`          |
 | `VTK_CONDA_CHANNEL`      | conda 频道，默认 `https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge` |
-| `VTK_CONDA_SPEC`         | 安装的包，默认 `vtk`（含 `vtk-base` + `vtk-io-ffmpeg`） |
+| `VTK_FULL`               | 设为 `1` 时安装完整 `vtk` 元包（含 python 绑定 / Qt6 / ffmpeg） |
+| `VTK_CONDA_SPEC`         | `VTK_FULL=1` 时安装的包，默认 `vtk`                    |
+| `VTK_MINIMAL_SPEC`       | 最小安装的 VTK 包，默认 `vtk-base=9.7 vtk-io-ffmpeg=9.7` |
+| `VTK_MINIMAL_DEPS`       | 最小安装的第三方依赖包清单（默认值与示例模块闭包对应，见脚本） |
+| `VTK_FORCE_REINSTALL`    | 设为 `1` 时先删除 `third_party\vtk` 再安装（切换最小/完整安装用） |
 | `VTK_SKIP_INSTALL`       | 设为 `1` 时只复用已装 VTK，不联网                     |
 | `VTK_KEEP_PKG_CACHE`     | 设为 `1` 时保留 conda 包缓存（默认安装后清理，省数 GB） |
 | `VTK_ALLOW_INSECURE_SSL` | 设为 `1` 时关闭下载时的 SSL 校验（证书吊销列表不可达的网络） |
 
-首次自动安装约需下载 450 MB（解包后 `third_party\vtk` 约 2.2 GB），之后构建脚本直接复用。
+之后构建脚本直接复用 `third_party\vtk`，不会重复下载。
 
 **启动自检（`--self-test`）**
 
@@ -264,14 +290,34 @@ git push origin main v0.2.2
 也可命令行指定：`[Windows]package_source.bat 0.2.2`。
 
 压缩包内有一层顶层目录 `MotionGloveSDK_cpp_v<版本号>`，解压后可直接用
-`[Windows]build_vs2022.bat` 等脚本构建。为保证客户拿到的是“只读源码”，打包时会剔除：
+`[Windows]build_vs2022.bat` 等脚本构建。
+
+**预编译产物（`preBuild/`）**：若打包前跑过一键构建脚本，`out/install` 与 `out/install_example`
+会被原样放进包内，客户解压即得可直接运行的示例，不必自己装 VTK / 配工具链：
+
+```
+MotionGloveSDK_cpp_v<版本号>/
+├── ...源码...
+└── preBuild/
+    ├── install/           # ← out/install：SDK 的 dll/lib/头文件
+    │   ├── x64-Debug/
+    │   └── x64-Release/
+    └── install_example/   # ← out/install_example：示例 exe + 运行库（含 VTK）
+        ├── x64-Debug/
+        └── x64-Release/
+```
+
+两个目录不存在时会打印警告、照常出纯源码包；不想要预编译产物时加
+`powershell -ExecutionPolicy Bypass -File tools\package_source.ps1 -SkipPreBuild`。
+
+为保证客户拿到的是“只读源码”，打包时会剔除：
 
 | 类别 | 内容 |
 | --- | --- |
 | 版本控制 | `.git/`（客户拿不到仓库地址与历史，无法 pull 你的代码）、`.gitignore` |
 | git 操作脚本 | `[Windows]git_pull_latest.cmd`、`[Linux]git_pull_latest.sh`，以及 README 里对应的说明 |
 | 内部资料 | `.github/`（CI 与 agent 配置）、`openspec/`、`docs/superpowers/`、`.vscode/` |
-| 构建产物 | `out/`（含 `out/build`、`out/install`、`out/package` 暂存目录）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log`；历史遗留的根目录 `build/` 若存在也一并剔除 |
+| 构建产物 | `out/`（`out/build`、`out/package` 暂存目录等；`out/install`、`out/install_example` 只以 `preBuild/` 形式进包）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log`；历史遗留的根目录 `build/` 若存在也一并剔除 |
 | 本机专用 | `tools/autotools_env.bat`、打包脚本自身 |
 
 脚本打完包会自检：一旦发现残留的 `.git` 目录、git 操作脚本或脚本里的
