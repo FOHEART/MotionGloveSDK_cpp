@@ -8,9 +8,10 @@
     2) 正常启动程序，等待标题为 `MotionGloveSDK VTK Example` 的窗口出现，
        出现即认为「能正常启动」，随后结束该进程。
 
-    无 GPU 的托管 CI runner（只有 OpenGL 1.1 软件实现）可能无法创建 VTK 需要的
-    OpenGL 3.2 上下文，此时可用 -AllowNoWindow 把「窗口未出现」降级为警告：
-    启动路径仍由第 1 步的 self-test 覆盖。
+    示例在检测不到 OpenGL 3.2+ 时会以退出码 2 干净退出（而不是崩溃）。
+    托管 CI runner 上可能装不上软件 OpenGL，此时用 -AllowNoWindow 把
+    「环境不支持 OpenGL」降级为警告：启动路径仍由第 1 步的 self-test 覆盖。
+    除该情况外的任何提前退出都视为失败。
 
 .PARAMETER Exe
     示例可执行文件路径。
@@ -22,7 +23,7 @@
     期望的窗口标题，默认与示例中的 SetWindowName 一致。
 
 .PARAMETER AllowNoWindow
-    超时未检测到窗口时只报警告而不失败。
+    允许因「环境不支持 OpenGL 3.2+」而跳过窗口检测（仅此一种情况）。
 
 .EXAMPLE
     ./tools/test_vtk_example_launch.ps1 -Exe out/build/x64-Release/Release/motionGloveSDK_example_vtk.exe
@@ -87,11 +88,19 @@ if ($programOutput.Count -gt 0) {
 }
 
 if ($exitedEarly) {
+    if ($exitCode -eq 2) {
+        if ($AllowNoWindow) {
+            Write-Warning '环境不支持 OpenGL 3.2+，已跳过窗口检测（初始化路径已由 self-test 验证）。'
+            Remove-Item $outFile, $errFile -ErrorAction SilentlyContinue
+            exit 0
+        }
+        throw '环境不支持 OpenGL 3.2+（退出码 2），无法验证窗口；无显卡机器可安装 Mesa 软件 OpenGL。'
+    }
     throw "程序在窗口出现前退出（退出码 $exitCode），启动失败。"
 }
 
 if ($AllowNoWindow) {
-    Write-Warning "在 $TimeoutSeconds 秒内未检测到窗口 '$WindowTitle'（当前机器可能没有可用的 OpenGL 3.2 上下文）；初始化路径已由 self-test 验证。"
+    Write-Warning "在 $TimeoutSeconds 秒内未检测到窗口 '$WindowTitle'；初始化路径已由 self-test 验证。"
     exit 0
 }
 

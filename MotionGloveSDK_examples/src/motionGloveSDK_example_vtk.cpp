@@ -37,6 +37,7 @@
 #include <vtkCommand.h>
 #include <vtkCylinderSource.h>
 #include <vtkInteractorStyleTrackballCamera.h>
+#include <vtkOpenGLRenderWindow.h>
 #include <vtkPoints.h>
 #include <vtkPolyData.h>
 #include <vtkPolyDataMapper.h>
@@ -375,7 +376,8 @@ static void OnKeyPress(vtkObject* caller, unsigned long eventId, void* clientDat
  *          不创建 OpenGL 上下文、不进事件循环，便于在无显卡的 CI 环境做启动自检。
  * @param argc [in] 命令行参数个数。
  * @param argv [in] 命令行参数数组。
- * @return 0 表示正常退出；1 表示 UDP 绑定失败。
+ * @return 0 表示正常退出；1 表示 UDP 绑定失败；
+ *         2 表示当前环境不支持 OpenGL 3.2+（VTK 无法渲染）。
  */
 int main(int argc, char* argv[])
 {
@@ -506,6 +508,20 @@ int main(int argc, char* argv[])
                static_cast<int>(KHHS32_SkeletonCount), renderer->GetActors()->GetNumberOfItems());
         CloseUdpPortOnce();
         return 0;
+    }
+
+    // 没有 OpenGL 3.2+（如无显卡的服务器 / CI）时 VTK 会在渲染阶段崩溃，这里先探测并干净退出。
+    auto glWindow = vtkOpenGLRenderWindow::SafeDownCast(renderWindow);
+    if (glWindow && !glWindow->SupportsOpenGL())
+    {
+        printf("motionGloveSDK_example_vtk: OpenGL 3.2+ is required but not available.\n");
+        const std::string supportMessage = glWindow->GetOpenGLSupportMessage();
+        if (!supportMessage.empty())
+        {
+            printf("%s\n", supportMessage.c_str());
+        }
+        CloseUdpPortOnce();
+        return 2;
     }
 
     renderWindow->Render();

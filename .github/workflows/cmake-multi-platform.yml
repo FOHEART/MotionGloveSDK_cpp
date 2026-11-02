@@ -112,12 +112,29 @@ jobs:
             -DBUILD_TESTS=OFF -DBUILD_VTK_EXAMPLE=ON
           cmake --build out/build/ci-vtk --target motionGloveSDK_example_vtk --parallel "$(nproc)"
 
+      - name: Install Mesa software OpenGL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # 托管 runner 没有 GPU、系统只有 OpenGL 1.1；装 Mesa 的 llvmpipe（opengl32.dll）
+        # 到输出目录，VTK 才能建出 OpenGL 3.2+ 上下文并真正开窗。失败不阻断后续步骤。
+        continue-on-error: true
+        env:
+          MESA_VERSION: 26.2.5
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'mesa.7z'
+          $url = "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/mesa3d-$env:MESA_VERSION-release-msvc.7z"
+          curl.exe -fsSL -o $archive $url
+          $out = Join-Path $env:RUNNER_TEMP 'mesa'
+          & 7z x -y "-o$out" $archive 'x64/*' | Out-Null
+          Copy-Item (Join-Path $out 'x64\*.dll') 'out/build/ci-vtk/Release' -Force
+          Write-Host "已安装 Mesa $env:MESA_VERSION 软件 OpenGL"
+
       - name: Launch test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         timeout-minutes: 8
-        # self-test 覆盖启动路径；托管 runner 只有 OpenGL 1.1 软件实现，
-        # 可能建不出 VTK 需要的 OpenGL 3.2 上下文，故窗口检测不通过时降级为警告。
+        # self-test 校验初始化路径；随后真实启动并等待窗口出现。
+        # 若 Mesa 装不上（环境无 OpenGL 3.2+，示例以退出码 2 退出），降级为警告。
         run: ./tools/test_vtk_example_launch.ps1 -Exe out/build/ci-vtk/Release/motionGloveSDK_example_vtk.exe -AllowNoWindow
 
       - name: Launch test (Linux, Xvfb)
