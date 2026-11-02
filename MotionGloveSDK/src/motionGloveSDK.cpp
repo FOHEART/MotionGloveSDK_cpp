@@ -21,6 +21,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <fcntl.h>
 #include <string.h>
 #endif
 
@@ -174,13 +175,52 @@ static void* ThreadProc(void* lpParam)
 		{
 			break;
 		}
-		int nRet = recvfrom(socketObj, rxBuffer, maxFrameLen, 0, (struct sockaddr*)&from, &fromlen);
-#ifdef _WIN32
-		if (nRet != SOCKET_ERROR)
-#else
-		if (nRet >= 0)
-#endif
+
+		/* 等待数据可读（10ms 超时）后再收包：
+		   原实现每包 Sleep(1)，Windows 下实际休眠约 15.6ms，
+		   60Hz 大帧（42 段 CSV，通常 2~3KB/包）时接收吞吐不足、
+		   接收缓冲区溢出丢包，表现为"骨骼不动/偶发跳帧"。
+		   现改为 select 等待 + 非阻塞 recvfrom，并把一次 select
+		   唤醒后可读的包全部处理完，再回到 select 等待。 */
 		{
+#ifdef _WIN32
+			fd_set readSet;
+			FD_ZERO(&readSet);
+			FD_SET(socketObj, &readSet);
+			timeval timeout = { 0, 10 * 1000 };
+			int selRet = select((int)socketObj + 1, &readSet, NULL, NULL, &timeout);
+			if (selRet <= 0)
+			{
+				continue;
+			}
+#else
+			fd_set readSet;
+			FD_ZERO(&readSet);
+			FD_SET(socketObj, &readSet);
+			timeval timeout = { 0, 10 * 1000 };
+			int selRet = select(socketObj + 1, &readSet, NULL, NULL, &timeout);
+			if (selRet <= 0)
+			{
+				continue;
+			}
+#endif
+		}
+
+		/* 一次性收空当前接收队列（非阻塞模式，队列空时 recvfrom 返回 EWOULDBLOCK）。 */
+		while (1)
+		{
+			int nRet = recvfrom(socketObj, rxBuffer, maxFrameLen, 0, (struct sockaddr*)&from, &fromlen);
+#ifdef _WIN32
+			if (nRet == SOCKET_ERROR)
+			{
+				break;
+			}
+#else
+			if (nRet < 0)
+			{
+				break;
+			}
+#endif
 			rxBuffer[nRet] = 0;
 #ifdef _WIN32
 			KHHS42PosAttitude.remoteIP[0] = from.sin_addr.S_un.S_un_b.s_b1;
@@ -302,19 +342,6 @@ static void* ThreadProc(void* lpParam)
 				newPoseCount++;
 			}
 		}
-		else
-		{
-#ifdef _WIN32
-			printf_s(errorMsg, "recvfrom error no: %d.", nRet);
-#else
-			printf("recvfrom error no: %d.\n", nRet);
-#endif
-		}
-#ifdef _WIN32
-		Sleep(1);
-#else
-		usleep(1000); // 1ms
-#endif
 	}
 
 	if (rxBuffer)
@@ -492,7 +519,24 @@ static int MotionGloveSDK_ReopenAndBindSocket(const struct sockaddr_in* local, i
 		return -1;
 	}
 
-	int nRecvBuf = 32 * 1024;//接收缓冲区为32K
+	/* 接收线程用"select 等待 + 连续 recvfrom 清空队列"的模式，
+	   套接字必须是非阻塞的，否则队列收空后 recvfrom 会卡死。 */
+#ifdef _WIN32
+	{
+		u_long nonBlocking = 1;
+		ioctlsocket(socketObj, FIONBIO, &nonBlocking);
+	}
+#else
+	{
+		int flags = fcntl(socketObj, F_GETFL, 0);
+		if (flags != -1)
+		{
+			fcntl(socketObj, F_SETFL, flags | O_NONBLOCK);
+		}
+	}
+#endif
+
+	int nRecvBuf = 1024 * 1024;//接收缓冲区 1MB：60Hz 的大帧（42 段 CSV 可达 3KB/包）下避免溢出丢包
 	setsockopt(socketObj, SOL_SOCKET, SO_RCVBUF, (const char*)&nRecvBuf, sizeof(int));
 
 	int bindRet = bind(socketObj, (struct sockaddr*)local, sizeof(*local));

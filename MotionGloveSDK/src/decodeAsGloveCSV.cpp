@@ -445,9 +445,24 @@ int decodeAsGloveCSV_Func(char* binStream,
 				m_GloveSplitFrameMgr.reset();
 				return -1;
 			}
-			m_GloveSplitFrameMgr.subFrameVec.push_back(subPak1);
-			std::string s = binStreamStr.substr(header.size() + 1);
-			m_GloveSplitFrameMgr.m_data += s;
+			/* 重复子包不重复计数（与 Python 参考实现的 set 语义一致）：
+			   subFrameVec 若把重复编号 push 两次，size 会超过子包总数，
+			   整帧将永远无法拼齐（checkFrameComplete 恒 false）。 */
+			bool alreadyReceived = false;
+			for (unsigned int receivedIdx : m_GloveSplitFrameMgr.subFrameVec)
+			{
+				if (receivedIdx == (unsigned int)subPak1)
+				{
+					alreadyReceived = true;
+					break;
+				}
+			}
+			if (!alreadyReceived)
+			{
+				m_GloveSplitFrameMgr.subFrameVec.push_back(subPak1);
+				std::string s = binStreamStr.substr(header.size() + 1);
+				m_GloveSplitFrameMgr.m_data += s;
+			}
 		}
 		bool isComplete = m_GloveSplitFrameMgr.checkFrameComplete();
 

@@ -1,18 +1,40 @@
 ﻿# 网络数据流文本格式说明
 
-本说明描述 SDK 通过 UDP 发出的「可读字符串数据流」的完整格式：整帧由哪些片段组成、
-每个片段在哪些配置下出现、片段内可以出现哪些取值、以及每个取值代表什么含义。
+| 项目     | 内容                                                        |
+| -------- | ----------------------------------------------------------- |
+| 文档版本 | v1.1                                                        |
+| 更新日期 | **2026-11-02**                                              |
+| 适用范围 | 上位机（MotionVenus）发出的 UDP 文本流 ↔ MotionGloveSDK 接收端 |
 
-- 生成实现：`src/stream/libH2StreamGenClass.cpp`（`genMotionGloveStream()` / `splitFrame()`）
-- 对外声明：[libH2StreamGenClass.h](../../inc/stream/libH2StreamGenClass.h)
-- 格式配置结构：[motionGloveStreamConfig.h](../../include/motionGloveStreamConfig.h)
-- 发送实现：`src/network/h2NetworkMgr.cpp`（`TxStdStringMsg()`）
-- 骨骼索引与名称：[motionGloveSDK_skeleton32Def.h](../../include/motionGloveSDK_skeleton32Def.h)、
-  [motionGloveSDK_skeleton42Def.h](../../include/motionGloveSDK_skeleton42Def.h)
-- 手势模板名：`src/gesture/gestureManager.cpp`
+本说明描述数据流的完整格式：整帧由哪些片段组成、每个片段在哪些配置下出现、
+片段内可以出现哪些取值、每个取值代表什么含义，以及**接收端必须遵守的判定与丢弃规则**。
+
+**本仓库实现的是接收端**，对应的代码位置：
+
+- 解码与分包重组：`MotionGloveSDK/src/decodeAsGloveCSV.cpp`
+  （`decodeAsGloveCSV_Func()` / `GloveSplitFrameMgr::parseFrame()`）
+- 接收线程与数据流管理：`MotionGloveSDK/src/motionGloveSDK.cpp`
+- 对外接口：[motionGloveSDK.h](motionGloveSDK.h)；结构体与枚举：[motionGloveSDK_commonDef.h](motionGloveSDK_commonDef.h)、
+  [motionGloveSDKDef.h](motionGloveSDKDef.h)
+- 骨骼索引与名称：[motionGloveSDK_skeleton32Def.h](motionGloveSDK_skeleton32Def.h)、
+  [motionGloveSDK_skeleton42Def.h](motionGloveSDK_skeleton42Def.h)
+
+发送端（帧的生成、分包、发送、CSV 录制）**不在本仓库**，实现见上位机 SDK 的
+`libH2StreamGenClass.cpp`（`genMotionGloveStream()` / `splitFrame()`）与 `h2NetworkMgr.cpp`（`TxStdStringMsg()`）。
+本文只描述其**线上格式**，不把这些路径当作本仓库的代码索引。
 
 数据流是**纯 ASCII 文本**，一帧一行。发送端每个 UDP 报文携带一帧的一个「分包」，
 分包之间没有二进制分隔符；CSV 录制把同一份文本按帧写成文件行。
+
+> **阅读指引**：只想对接数据的话，按 2.9（格式标记）→ 2.10（接收端判定规则）→ 3（数值串布局）
+> → 3.4（姿态参考系）→ 4（分包）的顺序看即可；第 6 节列出了所有"收到就丢"的边界情况。
+
+## 修订记录
+
+| 日期       | 版本 | 主要变化                                                                                                                                                                             |
+| ---------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-11-01 | v1.0 | 初版：帧头字段、32 段布局、分包规则、42 段布局规划                                                                                                                              |
+| 2026-11-02 | v1.1 | **42 段布局已落地**：接收端实现格式判定（带标记 / 不带标记双路径）与 42 段取帧接口；新增 2.10 判定与丢弃规则、3.4 姿态参考系与父链累乘（含两个已知陷阱）、3.5 32 段虚拟指尖算法、4.4 接收端重组与吞吐要求、9 接收端 API 速查 |
 
 ---
 
@@ -24,8 +46,8 @@
 
 `[…]` 表示该片段只在对应配置打开时出现，顺序固定不可调换。
 
-骨骼段数标记放在 **`fn <帧号>` 之后、分隔逗号之前**（即帧头的最后一个 token），**尚未实现**
-（见 2.9 节）；现有帧一律按 `skeleton_32` 解析。放在这里是为了不破坏现有结构：
+骨骼段数标记放在 **`fn <帧号>` 之后、分隔逗号之前**（即帧头的最后一个 token），**可缺省**
+（见 2.9 节）：没有该字段即按 `skeleton_32` 解析。放在这里是为了不破坏现有结构：
 整帧第一个 token 仍然是 `<ActorName>`。
 
 生成结束后会把**末尾那个逗号裁掉**，因此骨骼数值串的最后一个数值后面没有逗号。
@@ -166,16 +188,17 @@ thumbIndex_r <d> thumbMiddle_r <d> thumbRing_r <d> thumbPinky_r <d>
 
 接收端用它判断丢包与乱序。注意每台手套（每个 `libH2` 实例）有独立的帧号序列。
 
-### 2.9 `skeleton_32` / `skeleton_42` / `skeleton_openxr`（规划中，尚未实现）
+### 2.9 `skeleton_32` / `skeleton_42` / `skeleton_openxr`
 
-> **状态：需求已登记，当前 SDK 不会输出该字段。** 现有帧一律按 `skeleton_32` 解析。
+> **状态（2026-11-02）：接收端已完整实现，发送端按配置输出。**
+> 线上实测两种形态都存在——**带标记**（`… fn 1237 skeleton_42 …`）与**不带标记**的老形态，
+> 接收端都能正确识别，判定规则见 2.10 节。
 
-**需求要点（已确认）**
+**字段定义**
 
-1. 在 `fn <帧号>` **之后**增加 `skeleton_32` / `skeleton_42` / `skeleton_openxr` 三个取值之一
-   （不放在整帧开头，以免破坏现有结构）；**没有该字段即为 `skeleton_32`**。
+1. 位置固定在 `fn <帧号>` **之后**（不放在整帧开头，以免破坏现有结构）；**没有该字段即为 `skeleton_32`**。
 2. `skeleton_42` 按 `KHSL42_SkeletonIndex` 的定义顺序排列，**不是**把指尖追加到 32 段末尾。
-3. `skeleton_42` 中 10 段指尖末端**同样输出角度**（不是只有位置），角度与其父骨骼（本指第 3 节）一致；
+3. `skeleton_42` 中 10 段指尖末端**同样输出姿态列**（不是只有位置），姿态与其父骨骼（本指第 3 节）一致；
    `relative` 模式下"相对父骨骼的旋转填零"（单位旋转），但**这些列不能省略**；
    42 段的列数完全一致，不存在"只有位置"的段。
 
@@ -184,33 +207,27 @@ thumbIndex_r <d> thumbMiddle_r <d> thumbRing_r <d> thumbPinky_r <d>
 | 位置   | **紧跟 `fn <帧号>` 之后**、分隔逗号之前（帧头最后一个 token）                          |
 | 取值   | `skeleton_32`、`skeleton_42`、`skeleton_openxr` 三者之一，全小写 |
 | 分隔   | 与前面的 `<帧号>`、后面的逗号之间各用**一个空格**分隔                  |
-| 缺省   | **没有该字段即 `skeleton_32`**，与现有格式完全等价             |
+| 缺省   | **没有该字段即 `skeleton_32`**，与老格式完全等价             |
 | 重复性 | 属于帧头（在第一个逗号之前），因此**每个分包都会带上它**         |
 
 三种取值的含义：
 
 | 取值                | 骨骼段数                 | 每手                                   | 数值串组成                                                                                                                    |
 | ------------------- | ------------------------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `skeleton_32`     | 32                       | 16 = 手掌 + 5 指 × 3 节               | 见第 3 节                                                                                                                     |
-| `skeleton_42`     | 42                       | 21 = 手掌 + 5 指 ×（3 节 + 指尖末端） | **按 `KHSL42_SkeletonIndex` 顺序排列**（见 3.3 节）；42 段**每段都有位置 + 姿态**，指尖末端的姿态与其父骨骼一致 |
+| `skeleton_32`     | 32                       | 16 = 手掌 + 5 指 × 3 节               | 见 3.2 节                                                                                                                     |
+| `skeleton_42`     | 42                       | 21 = 手掌 + 5 指 ×（3 节 + 指尖末端） | **按 `KHSL42_SkeletonIndex` 顺序排列**（见 3.3 节）；42 段**每段都有位置 + 姿态** |
 | `skeleton_openxr` | 待定（规划 52，每手 26） | 26                                     | **待定**，布局确定前不得发送                                                                                            |
 
-新接收端的解析顺序：
+> 标记位置固定在 `fn` 之后，`<ActorName>` 不再需要任何约定或转义；把第一个 token 当演员名的
+> 解析器也不受影响。
 
-1. 在帧头里定位 `fn` 关键字，紧随其后的 token 是帧号；
-2. 帧号后面若还有一个 `skeleton_32` / `skeleton_42` / `skeleton_openxr` token → 按它解释数值串布局；
-3. 帧号后面直接就是分隔逗号（或 `subpackage i/N`）→ 该帧按 `skeleton_32` 处理（老格式）。
-
-> 标记位置固定在 `fn` 之后，`<ActorName>` 不再需要任何约定或转义；老接收端照旧把第一个 token
-> 当演员名也不受影响。
-
-**兼容性要求（实现时必须遵守）**
+**兼容性要求（发送端与接收端必须共同遵守）**
 
 - **42 段按 `KHSL42_SkeletonIndex` 的顺序排列**（右手 21 段 → 左手 21 段，指尖末端紧跟在本指第 3 节
   之后），**不追加到末尾**，详见 3.3 节。
 - 由此带来一个必须承认的后果：`skeleton_42` 的数值串前 32 个"段"与 `skeleton_32` 的布局**不对应**
   （从第 5 个段开始就分叉：`skeleton_32` 的第 5 段是 `RHI1`，`skeleton_42` 的第 5 段是 `RHT3End`）。
-  因此**老接收端不能再"只读前 32 段"**——它必须按首 token 识别 `skeleton_42` 并**整帧拒绝**，
+  因此**只支持 32 段的老接收端不能再"只读前 32 段"**——它必须识别 `skeleton_42` 并**整帧拒绝**，
   绝不能当成 32 段继续解析（那样不会报错，只会静默错位）。
 - **指尖末端也有姿态**：42 段**全部**是"位置 + 姿态"，列数一致，可按固定步长解析。
   指尖末端的姿态在语义上**与其父骨骼（本指第 3 节）保持一致**，具体列值见 3.3 节的说明；
@@ -220,12 +237,44 @@ thumbIndex_r <d> thumbMiddle_r <d> thumbRing_r <d> thumbPinky_r <d>
 - **默认帧零变化**：这是老接收端兼容的主要保障——建议仅在骨骼数 ≠ 32 时才输出该字段，
   使默认配置下的帧与旧版逐字节一致。
 
-**`skeleton_openxr` 待定项（实现前需要先定）**
+**`skeleton_openxr` 待定项（布局仍未定义）**
 
 - 具体骨骼数与顺序（规划：每手 26 个关节，双手 52）。
 - OpenXR 关节带旋转，且含掌骨与腕骨，与现有 32 段不是一一对应；多出来的关节是否要带
   `quat` / `euler`、以及 `pos`/`quat` 标记如何扩展，需要另行约定。
-- 在该布局写入本文档之前，**该取值不得出现在线上数据里**。
+- 在该布局写入本文档之前，**该取值不得出现在线上数据里**；接收端遇到即整帧丢弃（见 2.10）。
+
+### 2.10 接收端的格式判定与丢弃规则（已实现）
+
+`decodeAsGloveCSV_Func()` 的判定顺序：
+
+1. 帧头 token 中定位 `fn`，其后的下一个 token 若是 `skeleton_*` 标记 → 以标记为准；
+2. **没有标记时按列数消歧**：`字段数 == 每段列数 × 42` → 42 段，`== 每段列数 × 32` → 32 段
+   （同一 `pos`/姿态配置下两者列数不等，无歧义）；
+3. 两者都不匹配 → `parseFrame()` 返回 false，整帧丢弃（打印 `[err]`）。
+
+| 情况                                   | 接收端行为                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 标记与列数一致                         | 按标记布局解析                                                                                   |
+| 有标记但列数不符                       | **整帧丢弃**（不猜测、不回退）                                                                  |
+| 无标记、列数 = 42 段                   | 按 42 段解析（兼容不带标记的 42 段帧）                                                          |
+| 无标记、列数 = 32 段                   | 按 32 段解析（老格式默认）                                                                      |
+| `skeleton_openxr`                      | 整帧丢弃，返回 `MGSDK_DECODE_OPENXR_UNSUPPORTED`；接收线程按次数节流告警（第 1 次与每 100 次）  |
+| 其它 `skeleton_` 开头的未知取值        | **整帧丢弃**，绝不回退成 32 段                                                                   |
+| 同一帧各子包的标记不一致               | 复位分帧状态并丢弃该帧（串帧或发送端在帧中途改配置）                                            |
+| 调用方输出容量小于本帧段数             | 返回 -1，整帧丢弃（接收线程内部按 42 段容量申请，实际不会触发）                                 |
+
+解析成功后写入 `StreamHeader` 的字段：
+
+| 字段                                                  | 32 段                        | 42 段                        |
+| ----------------------------------------------------- | ---------------------------- | ---------------------------- |
+| `skeletonFormat`                                    | `GloveStreamFormat_Skeleton32` | `GloveStreamFormat_Skeleton42` |
+| `leftFigureSkeletonCount` / `rightFigureSkeletonCount` | **15**（不含手掌根）        | **20**（不含手掌根）        |
+| `bodySkeletonCount`                                 | 2（左手 + 右手，恒为 2）     | 同左                         |
+| `frameNumber`                                       | 帧内 `fn` 原值               | 同左                         |
+
+因此调用方的正确姿势是：**先查 `skeletonFormat`，再选对应的取帧函数**——
+用错函数会直接返回 -1，不会给出错位数据（见第 9 节）。
 
 ---
 
@@ -283,10 +332,15 @@ thumbIndex_r <d> thumbMiddle_r <d> thumbRing_r <d> thumbPinky_r <d>
 | 14 | `RHP2`  | RightHandPinky2  |  | 30 | `LHP2`  | LeftHandPinky2  |
 | 15 | `RHP3`  | RightHandPinky3  |  | 31 | `LHP3`  | LeftHandPinky3  |
 
-### 3.3 `skeleton_42` 的骨骼顺序（规划中，尚未实现）
+### 3.3 `skeleton_42` 的骨骼顺序
 
 `skeleton_42` 的数值串直接按 `KHSL42_SkeletonIndex` 的定义排列：**右手 21 段 → 左手 21 段**，
 每根手指的指尖末端（`*End`）紧跟在该指第 3 节之后。**不是**把指尖追加到 32 段末尾。
+
+> **实现现状（2026-11-02）**：接收端已按此布局解析并通过实测（`MotionGloveSDK_GetSkeletons42Frame`
+> 返回的 `skeletons[i].gloveSkeletonIndex` 即下表的 # 值）。
+> 下表中"数据来源"列的 `handJointPosition42` / `hand32RotQGlobal` 等是**发送端内部量**，
+> 接收端拿到的已经是解算好的位置与姿态列。
 
 | #  | 缩写        | 名称                | 列组成                                                                                           | 位置/姿态数据来源     |
 | -- | ----------- | ------------------- | ------------------------------------------------------------------------------------------------ | --------------------- |
@@ -354,6 +408,63 @@ thumbIndex_r <d> thumbMiddle_r <d> thumbRing_r <d> thumbPinky_r <d>
 - 由于 42 段顺序与 32 段不同，**第 5 个"段"就开始分叉**：`skeleton_32` 的第 5 段是 `RHI1`，
   `skeleton_42` 的第 5 段是 `RHT3End`。老接收端不能把 `skeleton_42` 当成 32 段解析。
 
+### 3.4 姿态的参考系：`relative` 必须沿父链累乘
+
+`skeletonCoordinate`（2.5 节）决定每个姿态值的参考系。渲染/物理端要**先统一成全局姿态**再定向骨骼：
+
+| 帧头       | 每段姿态的含义           | 还原全局姿态                                       |
+| ---------- | ------------------------ | -------------------------------------------------- |
+| `relative` | 相对**父骨骼**的局部旋转 | 沿父链累乘：`G_child = G_parent × Q_relative`（父在左） |
+| `global`   | 相对**世界坐标系**       | 直接使用                                           |
+
+父链（42 槽位；32 段是它的子集——去掉 10 个 `*End` 段即可）：
+
+- **右手**：手掌 `0 ← 无`；拇指 `1←0, 2←1, 3←2, 4←3`；食指 `5←0, 6←5, 7←6, 8←7`；
+  中指 `9←0, 10←9, 11←10, 12←11`；无名指 `13←0, 14←13, 15←14, 16←15`；小指 `17←0, 18←17, 19←18, 20←19`
+- **左手**：把上式每一项整体 `+21`，手掌 `21 ← 无`
+
+> **两个已踩过的坑**（都表现为"手型大方向对，一动就错"）：
+>
+> 1. **根骨骼的父必须记为无效（`-1`）**。若误把"左手掌 = 21"的父写成它自己，掌的四元数会被自乘一次（`q²`），
+>    腕部转 θ 角时整条手指链被带转 **2θ**——现象就是"手指末端跟着手腕一起转"。
+> 2. **乘法顺序是父在左**（`G_parent × Q_relative`）。写成 `Q_relative × G_parent` 在父链浅时"看起来差不多"，
+>    但旋转轴会错，转动幅度大时立刻暴露。
+
+**姿态列不是必需的，但 SDK 总会填四元数**：`euler` 帧由 `EulerToQuat()` 按 `channelOrder` 换算后
+一并写入 `SingleSkeletonDef::quat_xyzw`。所以渲染端只读 `quat_xyzw` 即可，不必自己处理欧拉顺序。
+注意 `quat_xyzw` 的**分量顺序是 x, y, z, w**（流内是 W, X, Y, Z，SDK 已重排），
+取用时不要再按 WXYZ 解释。
+
+位置列与姿态列是**两路独立解算的结果**：实测腕部转 50° 时手掌位置几乎不变，只有四元数明显变化。
+不要假设"位置已包含父级旋转"，也不要试图只靠位置推末端朝向。
+
+### 3.5 32 段没有指尖末端：虚拟指尖的生成方法
+
+32 段每手只有 16 段（手掌 + 5 指 × 3 节），**既没有指尖末端的位置，也没有它独立的姿态**。
+若要在渲染里画出"手掌 + 4 节手指"，最后约 20 mm 只能由第 3 节骨骼推导：
+
+1. 取本指**第 3 节的全局姿态**（`relative` 帧先按 3.4 节累乘）；
+2. 用它旋转骨骼的**静止轴向**（局部 `+Y`），得到末节方向 `d`；
+3. 指尖位置 `P_tip = P3 + d × 0.020 m`（20 mm 是经验值，对应真实末节长度量级）。
+
+退化路径（按顺序判断）：
+
+| 情况                                          | 处理                                    |
+| --------------------------------------------- | --------------------------------------- |
+| 帧里没有姿态（`SkeletonAttitude_None`）       | 沿 `P2 → P3` 方向延伸 20 mm             |
+| 四元数非法（全零 / 模长≈0）                   | 同上                                    |
+| `P2`、`P3` 重合（方向退化）                   | 沿 `+Y` 延伸 20 mm                      |
+| 位置列全零（走默认/占位手型）                 | **不要**再用帧里的姿态弯折虚拟指尖       |
+
+❌ **不要写成"再延伸一节"**：`P_tip = P3 + (P3 − P2)`。这会让末节与倒数第二节严格共线（夹角恒 0°），
+手指看起来"少了一节弯曲"，且末端朝向完全被倒数第二节决定。
+实测同一批 32 段数据：旧写法"末节与上一节夹角"**恒为 0°**；按本节算法实测 **4°~15°**
+（右手静息约 8.7°，随手指弯曲程度变化）——这个角度就是"上一节没有、必须由姿态补出来"的弯曲量。
+
+> 参考实现：`MotionGloveSDK_python/motionGloveSDK_example3_3dView.py` 的 `compute_frame_pose()`
+> 与 `_VIRTUAL_TIP_LENGTH_M`；C++ 版见 `MotionGloveSDK_examples/src/motionGloveSDK_example_vtk.cpp`
+> 的 `BuildGlobalQuaternions()` / `ComputeVirtualTipPosition()`。
+
 ---
 
 ## 4. 分包与 `subpackage i/N`
@@ -391,6 +502,21 @@ thumbIndex_r <d> thumbMiddle_r <d> thumbRing_r <d> thumbPinky_r <d>
 `TxStdStringMsg(std::vector<std::string>)` 的发送顺序是「目标在外层、报文在内层」：
 同一目标的各分包连续发出，便于接收端按到达顺序重组。
 
+### 4.4 接收端的重组要求（实现现状与踩过的坑）
+
+| 要求                                             | 原因 / 不这么做会怎样                                                                   |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| 按 `subpackage i/N` **去重**，同一 `i` 只累计一次 | 网络/发送端可能重复投递同一子包；"收到就 `push_back`"会让计数超过 `N`，整帧**永远等不齐** |
+| 帧号变化即开始新帧，未收齐的旧帧直接丢弃         | 42 段大帧（约 3 KB、3 个分包）在 60 Hz 下赶不及时，不能把旧帧和帧拼在一起                 |
+| 同一帧各子包的帧头（含 `skeleton_*` 标记）必须一致 | 不一致说明串帧或发送端在帧中途改配置，只能整帧丢弃                                        |
+| 接收线程必须**一次收空** UDP 队列                | Windows 下 `Sleep(1)` 实际休眠约 **15.6 ms**，60 Hz 的 42 段帧会在内核缓冲区溢出丢包       |
+| `SO_RCVBUF` 建议 ≥ **1 MB**                       | 默认 32 KB 只能缓冲约 10 帧，抖动一下就开始丢                                             |
+
+> 上述两条吞吐问题的真实症状是"**发送端手在动、SDK 收到的数据完全不动**"：
+> 42 段帧拼不齐 → `parseFrame()` 一直失败 → 缓存帧永远停留在最后一张。
+> 排查时先看是否"新帧 pending 次数 ≈ 定时器 tick 次数"，不等就说明在丢包。
+> `GloveSplitFrameMgr` 已按上表实现（`select()` 等待 + 非阻塞 `recvfrom` 循环收空队列）。
+
 ---
 
 ## 5. 完整示例
@@ -427,7 +553,7 @@ Glove1 time 2026-11-01 16:24:04.123 pos quat global fn 1236  subpackage 2/2,0.04
 
 两包的帧头完全相同（含同一个 `fn`），只有 `i/N` 与数值串不同。
 
-### 5.4 `skeleton_42` 示例（规划中，当前不会产生）
+### 5.4 `skeleton_42` 示例（线上真实存在的形态）
 
 ```
 Glove1 time 2026-11-01 16:24:04.123 pos quat global fn 1237 skeleton_42  subpackage 1/2,0.0123,0.0234,0.0345,1,0,0,0,…
@@ -438,6 +564,8 @@ Glove1 time 2026-11-01 16:24:04.123 pos quat global fn 1237 skeleton_42  subpack
 - 第一个 token 仍是演员名 `Glove1`，帧的整体结构不变；
 - 数值串按 `KHSL42_SkeletonIndex` 顺序：右手 21 段 → 左手 21 段，指尖紧跟在各指第 3 节之后；
 - `pos` + `quat` 时整帧 **294** 个数值 = 42 × 7（每段都有位置和姿态）；
+- 线上也存在**不带标记**的 42 段帧（`… fn 1237  subpackage 1/2,…`）：接收端按"294 个数值"
+  识别为 42 段，两种形态都能解析（见 2.10 节）；
 - 前 4 段是 `rHAND`、`RHT1`、`RHT2`、`RHT3`（各 7 列）；**第 5 段是 `RHT3End` 的 7 列**
   （位置 + 与 `RHT3` 相同的姿态），第 6 段才是 `RHI1`——这就是与 `skeleton_32` 分叉的位置；
 - 2/2 包末尾的 7 个数是 `LHP3End` 的 x/y/z 与 w/x/y/z；
@@ -456,11 +584,14 @@ Glove1 time 2026-11-01 16:24:04.123 pos quat global fn 1237 skeleton_42  subpack
 | `getH2Stream()` 的输出缓冲                                         | 各分包**首尾相接、无分隔符**，必须按调用方拿到的长度数组切分，不能当 C 字符串拼接                                                                                            |
 | 配置修改                                                             | `setStreamConfig()` 不下发、不加锁，只影响之后生成的帧；时间戳/位置/姿态/手势/摇杆等片段是**整段增删**而非留空占位，切换配置后列布局会变，接收端必须按帧头的标记字决定列数 |
 | 欧拉角 + `relative` 与 `global`                                  | 两条分支传给转换器的四元数分量顺序不同（`relative` 直接传 WXYZ，`global` 先重排为 XYZW），这是既有实现；跨坐标系比对角度时不要假设两者可直接互相映射                           |
-| 收到 `skeleton_openxr`                                             | 布局尚未定义，接收端应**整帧丢弃并记录告警**，不要按 32 或 42 猜测                                                                                                           |
+| 收到 `skeleton_openxr`                                             | 布局尚未定义，接收端**整帧丢弃**并按次数节流告警（第 1 次与每 100 次），不按 32 或 42 猜测                                                                                    |
 | 收到未知的 `skeleton_*` 取值                                       | 同上，按未知布局丢弃；**不要**回退成 32 段继续解析                                                                                                                           |
 | 老接收端收到 `skeleton_42`                                         | 必须**整帧拒绝**。当成 32 段解析不会报错，但第 5 段起全部错位                                                                                                                |
+| 收到**不带标记**的 42 段帧                                         | 按列数识别为 42 段并正常解析（现网确实存在这种形态，不要只依赖标记）                                                                                                          |
 | `skeleton_42` 分包不齐                                             | 按 `i/N` 判断是否收全，缺包时整帧丢弃（分包按逗号边界切分，缺包无法局部还原）                                                                                                    |
 | `skeleton_42` 列数不足（例如末梢把姿态列省掉了）                   | 列数是固定的 42×7（`quat`）或 42×6（`euler`），不足即视为帧损坏，整帧丢弃                                                                                                    |
+| 同一子包被重复投递                                                 | 按 `i` 去重后重新判断是否收齐；不去重会让"已收包数"超过 `N`，该帧**永远无法完成**                                                                                             |
+| 同一帧各子包的 `skeleton_*` 标记不一致                             | 整帧丢弃并复位分帧状态（串帧或发送端在帧中途改配置）                                                                                                                          |
 
 帧长余量：9 KB 缓冲对 `skeleton_42` + `pos` + `quat`（294 个数值，约 2.9 KB）仍然宽裕；
 但将来若采用 `skeleton_openxr`（规划 52 个关节且每个都带姿态，约 3.6 KB 量级）需要重新评估缓冲上限
@@ -488,13 +619,17 @@ Glove1 time 2026-11-01 16:24:04.123 pos quat global fn 1237 skeleton_42  subpack
 `actorName` 不在配置文件里：它只能通过 `H2_SDK_setGloveStreamConfigBySN()` 按 SN 单独设置，
 未设置时帧头的第一个 token 为空。
 
-骨骼段数标记（`skeleton_32` / `skeleton_42`）**目前也没有配置项**，尚未实现。实现时需要新增一个
-JSON 键（建议与 `skeletonPosition` 命名风格一致，键名待定），并同时处理：帧头标记、按
-`KHSL42_SkeletonIndex` 顺序输出 42 段、以及 CSV 表头的对应列。
+骨骼段数标记（`skeleton_32` / `skeleton_42`）**接收端不需要配置项**——它按帧头标记、必要时按列数自适应，
+所以主机端在中途切换段数也不会让接收端错乱（缓存帧的 `skeletonFormat` 每帧更新）。
+发送端侧的开关由上位机的"转发规则"决定（配置键名以发送端 SDK 为准），启用后需同时处理：
+帧头标记、按 `KHSL42_SkeletonIndex` 顺序输出 42 段、以及 CSV 表头的对应列。
 
 ---
 
-## 8. CSV 录制与数据流的关系
+## 8. CSV 录制与数据流的关系（发送端功能）
+
+> CSV 录制是**上位机（发送端）**的功能，本仓库的接收端 SDK 不写 CSV。
+> 本节保留是为了让读录制文件时有统一口径。
 
 CSV 录制写入的就是本文描述的同一份文本（`h2CsvRecordConfig::recordStream()`），
 每帧一行、`\r\n` 结尾，因此**行内包含 `subpackage i/N` 前缀**；一帧被分成多个分包时，
@@ -506,9 +641,100 @@ CSV 录制写入的就是本文描述的同一份文本（`h2CsvRecordConfig::re
 也就是说表头列数与数据行的字段数并不相等，用表格软件直接打开会错列，
 需要先按第 2 节的规则从行首剥掉帧头片段。
 
-若将来启用 `skeleton_42`，CSV 侧需要同步处理（**尚未实现**）：
+发送端启用 `skeleton_42` 后，CSV 侧需要同步处理（**发送端尚未实现**）：
 
 - 表头要按 `KHSL42_SkeletonIndex` 顺序重排，并为 10 个指尖末端补齐位置列
   （`Displacement(m):<名称>-X/Y/Z`）**和姿态列**（`Quaternion:<名称>-W/X/Y/Z` 或
   `Euler Angle(Degree):<名称>-X/Y/Z`），名称取 `kinemHumanSkeleton42`，否则列数与数据行对不上；
 - CSV 行首同样会带 `skeleton_42` 标记（因为录制的是同一份文本），剥帧头时要一并处理。
+
+---
+
+## 9. 接收端 API 速查
+
+### 9.1 取帧流程
+
+```c
+/* 绑定端口：失败返回非 0（多半是端口已被占用），此时收不到任何数据 */
+if (MotionGloveSDK_ListenUDPPort(5001) != 0) { /* 处理失败 */ }
+
+for (;;)
+{
+    if (!MotionGloveSDK_isGloveNewFramePending(name)) { /* 等下一轮 */ continue; }
+
+    GloveStreamSkeletonFormat_TypeDef fmt;
+    if (MotionGloveSDK_GetSkeletonsFrameType(name, &fmt) != 0) { continue; }
+
+    if (GloveStreamFormat_Skeleton42 == fmt)
+    {
+        KHHS42PosAttitude_TypeDef f42;
+        if (MotionGloveSDK_GetSkeletons42Frame(name, &f42) == 0) { /* f42.skeletons[0..41] */ }
+    }
+    else if (GloveStreamFormat_Skeleton32 == fmt)
+    {
+        KHHS32PosAttitude_TypeDef f32;
+        if (MotionGloveSDK_GetSkeletons32Frame(name, &f32) == 0) { /* f32.skeletons[0..31] */ }
+    }
+    /* else: OpenXR 布局未定义，跳过 */
+
+    MotionGloveSDK_resetGloveNewFramePending(name);
+}
+```
+
+| 接口                                         | 作用                    | 失败条件                                                     |
+| -------------------------------------------- | ----------------------- | ------------------------------------------------------------ |
+| `MotionGloveSDK_ListenUDPPort(port)`         | 绑定并开始接收          | 端口被占用、socket 创建失败                                  |
+| `MotionGloveSDK_isGloveNewFramePending(name)` | 是否有新帧待取          | 名字为空 / 找不到该流 → false                                |
+| `MotionGloveSDK_GetSkeletonsFrameType()`     | 缓存帧的格式            | 流不存在、`pFormat == NULL`                                  |
+| `MotionGloveSDK_GetSkeletons42Frame()`       | 取 42 段帧              | 流不存在、**缓存帧不是 42 段**、指针为 NULL                  |
+| `MotionGloveSDK_GetSkeletons32Frame()`       | 取 32 段帧              | 流不存在、**缓存帧不是 32 段**、指针为 NULL                  |
+| `MotionGloveSDK_GetSkeletonsOpenXRFrame()`   | 预留接口                | **恒返回 -1**（布局未定义）                                  |
+| `MotionGloveSDK_resetGloveNewFramePending()` | 清"新帧"标记            | 流不存在                                                     |
+
+用错取帧函数只会返回 -1，不会给出错位数据——这也是必须先用 `GetSkeletonsFrameType()` 的原因。
+
+### 9.2 `actorName` 是**前缀匹配**，不是全等
+
+SDK 内部用 `memcmp(查询名, 流名, strlen(查询名))` 比较：
+
+- 查询 `"Glove1"` 会命中 `"Glove1-SN-1403423E"`；
+- 多台手套并存时，用**更长的前缀或完整名字**，否则总是命中"先注册的那条流"
+  （症状：明明另一台在动，读到的却没变化）；
+- `"0"` 没有任何特殊含义（只有流名以 `0` 开头才会命中），名字上限 64 字节。
+
+### 9.3 结构体字段速查
+
+| 字段                                                     | 含义                                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `hdr.skeletonFormat`                                   | 本帧格式（32 / 42 / OpenXR），与 2.10 节一致                               |
+| `hdr.frameNumber`                                      | 帧号（2.8 节），可用于判断丢包/乱序                                        |
+| `hdr.skeletonPosition` / `skeletonAttitude` / `skeletonCoordinate` / `channelOrder` | 本帧的列布局与姿态语义，决定怎么解释下面两组数据                |
+| `hdr.leftFigureSkeletonCount` / `rightFigureSkeletonCount` | 42 段为 20、32 段为 15（不含手掌根）                                     |
+| `skeletons[i].position_meter[3]`                       | 位置，米（坐标系见 9.4）                                                   |
+| `skeletons[i].quat_xyzw[4]`                            | 四元数，**顺序 x, y, z, w**；`euler` 帧也已由 SDK 换算填充                  |
+| `skeletons[i].euler_degree[3]`                         | 欧拉角，度；分量含义随 `channelOrder` 变化（2.4 节）                       |
+| `skeletons[i].skeletonName`                            | 骨骼名（`kinemHumanHandsSkeleton32` / `...42` 中的对应项）                  |
+| `skeletons[i].gloveSkeletonIndex` / `gloveSkeletonIndex32` | 骨骼编号（联合体：42 段用前者，32 段用后者）                            |
+| 其余 `sensor*` 字段                                      | 传感器原始数据；纯手套数据流通常为默认值（四元数 0,0,0,1）                 |
+
+> `quat_xyzw` / `euler_degree` 的**参考系由 `hdr.skeletonCoordinate` 决定**（`relative` = 相对父骨骼，
+> `global` = 世界系），两者不是同一个量，跨坐标系比较角度前先按 3.4 节统一。
+
+### 9.4 位置与坐标轴
+
+位置单位为米，坐标系是**MotionVenus 软件 3D 界面左下角坐标系（右手系）**。
+实际显示时常见做法：地平面取 XZ 平面（y = 0），相机从 +Z 方向看向原点。
+位置是各关节在本机坐标系下的落点，**不保证随腕部姿态旋转**（见 3.4 节末尾），
+不要把位置和姿态当成同一路数据互相校验。
+
+---
+
+## 10. 相关文档
+
+| 文档                                                                           | 内容                                                     |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| [motionGloveSDK_skeleton32Def.h](motionGloveSDK_skeleton32Def.h)               | 32 段骨骼枚举与名称表                                    |
+| [motionGloveSDK_skeleton42Def.h](motionGloveSDK_skeleton42Def.h)               | 42 段骨骼枚举与名称表                                    |
+| [motionGloveSDK.h](motionGloveSDK.h)                                           | 取帧 / 查格式 / 绑定端口等公开 API                       |
+| `docs/superpowers/specs/2026-11-01-multiformat-stream-decode-design.md`       | 多格式解码的设计决策（为什么 32/42 用两个独立容器）      |
+| `MotionGloveSDK_python/motionGloveSDK_example3_3dView.py`                      | 3D 渲染参考实现（含 32 段虚拟指尖算法）                   |

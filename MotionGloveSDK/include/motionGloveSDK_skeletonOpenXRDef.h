@@ -10,7 +10,7 @@
  * 使其在布局确定后无需改动 ABI 即可补齐实现。
  *
  * 约定：该格式的字段排布未写入
- * motionGloveSDK/include/MOTIONGLOVE_SDK_STREAM_FORMAT.md 之前，
+ * motionGloveSDK/include/MOTIONGLOVE_SDK_STREAM_FORMAT_2026-11-02.md 之前，
  * 接收端一律整帧丢弃，不得按 32 段或 42 段猜测解析。
  */
 #pragma once

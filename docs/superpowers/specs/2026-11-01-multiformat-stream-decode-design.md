@@ -1,7 +1,7 @@
 # 多格式数据流解码（32 / 42 / OpenXR）设计
 
 日期：2026-11-01
-相关规格：[MOTIONGLOVE_SDK_STREAM_FORMAT.md](../../../MotionGloveSDK/include/MOTIONGLOVE_SDK_STREAM_FORMAT.md)（§2.9、§3、§6）
+相关规格：[MOTIONGLOVE_SDK_STREAM_FORMAT_2026-11-02.md](../../../MotionGloveSDK/include/MOTIONGLOVE_SDK_STREAM_FORMAT_2026-11-02.md)（§2.9、§2.10、§3）
 
 ## 1. 意图与理由
 

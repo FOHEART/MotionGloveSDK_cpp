@@ -18,7 +18,7 @@ INPUT_ENCODING         = UTF-8
 INPUT                  = MotionGloveSDK MotionGloveSDK_examples/src MotionGloveSDK_examples/inc tests/unit docs README.md
 FILE_PATTERNS          = *.h *.hpp *.c *.cpp *.cc *.dox *.md
 RECURSIVE              = YES
-EXCLUDE                = out build third_party docs/superpowers MotionGloveSDK/include/MOTIONGLOVE_SDK_STREAM_FORMAT.md
+EXCLUDE                = out build third_party docs/superpowers MotionGloveSDK/include/MOTIONGLOVE_SDK_STREAM_FORMAT_2026-11-02.md
 USE_MDFILE_AS_MAINPAGE = README.md
 
 # ---- 提取策略 ----

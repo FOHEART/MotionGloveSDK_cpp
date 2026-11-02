@@ -41,8 +41,10 @@ if(BUILD_VTK_EXAMPLE)
         CommonTransforms
         FiltersSources
         InteractionStyle
+        IOImage
         RenderingCore
         RenderingOpenGL2
+        RenderingAnnotation
         RenderingUI
     )
     if(VTK_FOUND)
@@ -118,22 +120,11 @@ foreach(source_file IN LISTS MAIN_SOURCES)
     endif()
 
     # add_library(MotionGloveSDK SHARED IMPORTED) 根据配置不同引入不同的库和dll
-   
-    if(WIN32)
-        # Windows配置
-        set_target_properties(${executable_name} PROPERTIES
-            IMPORTED_LOCATION_DEBUG "${MotionGloveSDK_ROOT}/build/Debug/MotionGloveSDK.dll"
-            IMPORTED_IMPLIB_DEBUG "${MotionGloveSDK_ROOT}/build/Debug/MotionGloveSDK.lib"
-            IMPORTED_LOCATION_RELEASE "${MotionGloveSDK_ROOT}/build/Release/MotionGloveSDK.dll"
-            IMPORTED_IMPLIB_RELEASE "${MotionGloveSDK_ROOT}/build/Release/MotionGloveSDK.lib"
-        )
-    elseif(UNIX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        # Linux/Ubuntu配置
-        set_target_properties(${executable_name} PROPERTIES
-            IMPORTED_LOCATION_DEBUG "${MotionGloveSDK_ROOT}/build/Debug/libMotionGloveSDK.so"
-            IMPORTED_LOCATION_RELEASE "${MotionGloveSDK_ROOT}/build/Release/libMotionGloveSDK.so"
-        )
-    endif()
+    # 说明：下面的 IMPORTED_LOCATION_* 属性只对 IMPORTED 目标生效；这里的
+    # MotionGloveSDK 是 add_subdirectory 构建出的普通目标，链接时直接用
+    # $<TARGET_FILE:MotionGloveSDK>，因此不需要、也不应再指向源码树下的 build/ 目录
+    # （历史上这里指向 ${MotionGloveSDK_ROOT}/build/...，容易让人误以为要在根目录生成 build）。
+    # 所有构建产物统一放在 out/build 下。
 
     
     # 将生成后的MotionGloveSDK库，自动拷贝到exe运行目录

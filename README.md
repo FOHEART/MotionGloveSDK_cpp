@@ -271,7 +271,7 @@ git push origin main v0.2.2
 | 版本控制 | `.git/`（客户拿不到仓库地址与历史，无法 pull 你的代码）、`.gitignore` |
 | git 操作脚本 | `[Windows]git_pull_latest.cmd`、`[Linux]git_pull_latest.sh`，以及 README 里对应的说明 |
 | 内部资料 | `.github/`（CI 与 agent 配置）、`openspec/`、`docs/superpowers/`、`.vscode/` |
-| 构建产物 | `out/`、`build/`（含 `out/package` 暂存目录）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log` |
+| 构建产物 | `out/`（含 `out/build`、`out/install`、`out/package` 暂存目录）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log`；历史遗留的根目录 `build/` 若存在也一并剔除 |
 | 本机专用 | `tools/autotools_env.bat`、打包脚本自身 |
 
 脚本打完包会自检：一旦发现残留的 `.git` 目录、git 操作脚本或脚本里的

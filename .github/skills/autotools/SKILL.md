@@ -34,10 +34,10 @@ description: >-
 | MuPDF | PDF 查看与处理（mutool） | `D:\autotools\mupdf\mutool.exe` |
 | iperf3 | 网络带宽/性能测试 | `D:\autotools\iperf\iperf3.exe` |
 | Poppler | PDF 工具集（pdftotext/pdftoppm/pdftocairo/pdfimages…） | `D:\autotools\pdftohtml\pdftotext.exe` 等 |
-| 7-Zip | 命令行压缩/解压（7z/zip/gz/xz/tar） | `D:\autotools\7z\7za.exe` |
-| Doxygen | 源码文档生成（C/C++/Java/Python 等） | `D:\autotools\doxygen-1.11.0\doxygen.exe` |
-| gallery-dl | 图集下载（1000+ 站点） | `D:\autotools\gallery_dl\gallery-dl.exe` |
-| Crawl4AI | 网页爬取与结构化提取（Python 技能包） | `D:\autotools\crawl4ai\SKILL.md` |
+| 7-Zip | 命令行压缩/解压（7z/zip/gz/xz/tar；ARM64 见 `7z\arm64\`） | `D:\autotools\7z\7za.exe` |
+| Doxygen | 源码文档生成（C/C++/Java/Python 等；附 `doxywizard` / `doxyindexer`） | `D:\autotools\doxygen-1.11.0\doxygen.exe` |
+| gallery-dl | 图集下载（独立版 v1.32.18，1000+ 站点，用法见同目录 README.md） | `D:\autotools\gallery_dl\gallery-dl.exe` |
+| Crawl4AI | 网页爬取与结构化提取（Crawl4AI v0.7.4+ 技能包） | `D:\autotools\crawl4ai\SKILL.md` |
 | RhinoAI | Rhino 8 三维建模 MCP（技能包） | `D:\autotools\rhinoai\SKILL.md` |
 | claude-skills | 参考技能包（pdf / pptx / video-downloader） | `D:\autotools\claude-skills\` |
 
@@ -162,6 +162,8 @@ C:\python\python.exe script.py
 
 - **Gost**：`D:\autotools\gost\` 内仅有转发 `.bat` 脚本与文档，**`gost.exe` 本体当前缺失**。
   使用前需先放入 `D:\autotools\gost\gost.exe`，或改用已配置的 `forward_*.bat`（脚本已假定该路径）。
+- **Doxygen 搜索工具**：`doxywizard.exe` / `doxyindexer.exe` 可用，**`doxysearch.exe` 缺失**，
+  故 `Doxyfile` 中 `SEARCHENGINE` 只影响 HTML 内置搜索，不要依赖外部搜索程序。
 - **加密软件**：本机未安装，故新建/落地文件无需加密中转，直接写入即可。
 
 ---
