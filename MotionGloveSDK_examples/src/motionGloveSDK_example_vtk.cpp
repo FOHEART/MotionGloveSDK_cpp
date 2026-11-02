@@ -27,6 +27,7 @@
 #include <string>
 
 #include "motionGloveSDK.h"
+#include "motionGloveSDK_version.h"
 
 #include <vtkActor.h>
 #include <vtkActorCollection.h>
@@ -394,7 +395,8 @@ int main(int argc, char* argv[])
     SetConsoleCP(CP_UTF8);
 #endif
 
-    printf("motionGloveSDK_example_vtk: binding UDP 127.0.0.1:%d\n", kDefaultUdpPort);
+    printf("motionGloveSDK_example_vtk v%s: binding UDP 127.0.0.1:%d\n",
+           MOTIONGLOVE_EXAMPLE_VERSION_STRING, kDefaultUdpPort);
     const int listenRet = MotionGloveSDK_ListenUDPPort(kDefaultUdpPort);
     if (listenRet != 0)
     {

@@ -1,0 +1,118 @@
+# 推送 vX.Y.Z 标签即触发：构建 Windows Release，打包 out/build/x64-Release/Release
+# 为 MotionGloveSDK_example_vX.Y.Z.zip 并发布 GitHub Release。
+#
+# 版本号唯一来源是 MotionGloveSDK_examples/inc/motionGloveSDK_version.h，
+# 标签与头文件不一致时流水线直接失败，避免产物名与二进制内的版本对不上。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish ${{ github.ref_name }}
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify tag matches the version header
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') {
+            throw "标签必须形如 vX.Y.Z（当前为 '$tag'）"
+          }
+          $tagVersion = $Matches[1]
+
+          $header = 'MotionGloveSDK_examples/inc/motionGloveSDK_version.h'
+          $text = Get-Content -LiteralPath $header -Raw
+          $parts = foreach ($part in 'MAJOR', 'MINOR', 'PATCH') {
+            if ($text -notmatch "#define\s+MOTIONGLOVE_EXAMPLE_VERSION_$part\s+(\d+)") {
+              throw "无法从 $header 解析 MOTIONGLOVE_EXAMPLE_VERSION_$part"
+            }
+            $Matches[1]
+          }
+          $headerVersion = $parts -join '.'
+          if ($headerVersion -ne $tagVersion) {
+            throw "版本号不一致：标签是 v$tagVersion，$header 里是 $headerVersion；请先更新版本头文件并提交，再重新打标签"
+          }
+
+          Write-Host "版本号校验通过：$tagVersion"
+          "version=$tagVersion" >> $env:GITHUB_OUTPUT
+
+      - name: Configure and build Release
+        shell: cmd
+        env:
+          VTK_CONDA_CHANNEL: https://conda.anaconda.org/conda-forge
+        run: |
+          rem VTK 示例及其运行库会一并打进发布包，因此先准备 VTK（失败则只发布基础示例）
+          call tools\setup_vtk.bat
+          if errorlevel 1 (
+            echo [WARN] VTK 不可用，本次发布不包含 motionGloveSDK_example_vtk
+            set "VTK_ARGS=-DBUILD_VTK_EXAMPLE=OFF"
+          ) else (
+            set "VTK_ARGS=-DBUILD_VTK_EXAMPLE=ON "-DVTK_DIR=%VTK_DIR%" "-DCMAKE_PREFIX_PATH=%VTK_CMAKE_PREFIX%""
+          )
+          rem 不指定 -G：runner 镜像在 VS2022/VS2026 之间变动，交给 CMake 自动选择
+          cmake -S . -B out/build/x64-Release -A x64 -DCMAKE_CONFIGURATION_TYPES=Release -DBUILD_TESTS=OFF %VTK_ARGS%
+          if errorlevel 1 exit /b 1
+          cmake --build out/build/x64-Release --config Release
+          if errorlevel 1 exit /b 1
+
+      - name: Package Release folder
+        id: package
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $releaseDir = 'out/build/x64-Release/Release'
+          if (-not (Test-Path "$releaseDir/motionGloveSDK_example1.exe")) {
+            throw "打包失败：$releaseDir 下缺少示例可执行文件"
+          }
+
+          $zipName = "MotionGloveSDK_example_v$version.zip"
+          $zip = Join-Path (Get-Location).Path $zipName
+          Remove-Item $zip -ErrorAction SilentlyContinue
+
+          # 顶层直接放 exe / dll，解压即可运行；7z 更快，缺失时退回 Compress-Archive
+          $sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
+          if (-not $sevenZip) { $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
+          if (Test-Path $sevenZip) {
+            # 在 Release 目录内打包，压缩包内不带目录前缀
+            Push-Location $releaseDir
+            & $sevenZip a -tzip -mx=5 $zip '*' | Out-Null
+            Pop-Location
+          } else {
+            Compress-Archive -Path "$releaseDir/*" -DestinationPath $zip -Force
+          }
+          if (-not (Test-Path $zip)) { throw "打包失败：未生成 $zip" }
+
+          $sizeMb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+          $fileCount = (Get-ChildItem $releaseDir -File).Count
+          Write-Host "打包完成：$zip（$fileCount 个文件，$sizeMb MB）"
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = '${{ steps.version.outputs.version }}'
+          $zip = '${{ steps.package.outputs.zip }}'
+
+          # 重复推送同一标签时更新已有 release 的产物
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $zip --clobber
+          } else {
+            gh release create $tag $zip --title "MotionGloveSDK_example v$version" --generate-notes
+          }
+          Write-Host "发布完成：$tag ← $zip"

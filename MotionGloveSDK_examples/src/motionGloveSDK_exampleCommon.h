@@ -8,11 +8,23 @@
  *  - 第一个中括号是当前帧的帧序号，取自帧头 hdr.frameNumber；
  *  - 第二个中括号是本帧的骨骼段数，取值为 32 / 42 / OpenXR。
  * 行首自带一个尾随空格，示例在其后直接续写自己的消息文本。
+ *
+ * 另外提供版本号打印，方便确认运行的是哪个发布版本。
  */
 #pragma once
 
 #include <stdio.h>
 #include "motionGloveSDK.h"
+#include "motionGloveSDK_version.h"
+
+/**
+ * @brief 打印示例版本号，形如 "motionGloveSDK_example1 v0.2.1"。
+ * @param exampleName [in] 示例名称。
+ */
+inline void PrintGloveExampleVersion(const char* exampleName)
+{
+    printf("%s v%s\n", exampleName, MOTIONGLOVE_EXAMPLE_VERSION_STRING);
+}
 
 /**
  * @brief 骨骼段数标签：把骨骼格式枚举转换成打印用的段数文本。

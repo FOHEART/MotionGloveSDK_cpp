@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file  motionGloveSDK_example5.cpp
  * @brief 示例 5：端口绑定/释放的压力测试，验证重复 Listen/Close 的稳定性。
  * @ingroup mgsdk_examples
@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <string>
 #include "motionGloveSDK.h"
+#include "motionGloveSDK_exampleCommon.h"
 
 /** @brief 默认监听UDP端口号（Default UDP port to bind and listen on）。 */
 const int rxPortDefault = 5001;
@@ -61,6 +62,7 @@ static const char* HEADER_COMMENT =
         u8"/*******************************************/\n";
 
     printf("%s", HEADER_COMMENT);
+    PrintGloveExampleVersion("motionGloveSDK_example5");
 
     int loopCounter = 0;
     while (true)

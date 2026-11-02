@@ -217,6 +217,32 @@ cmake --build out/build/x64-Release --config Release
 
 ---
 
+## 发布（打 tag 即发布 Release）
+
+版本号唯一定义在 [MotionGloveSDK_examples/inc/motionGloveSDK_version.h](./MotionGloveSDK_examples/inc/motionGloveSDK_version.h)
+的 `MOTIONGLOVE_EXAMPLE_VERSION_MAJOR/MINOR/PATCH`，CMake 用它设置工程版本，示例启动时也会打印
+（如 `motionGloveSDK_example1 v0.2.1`）。
+
+发版步骤：
+
+```console
+# 1. 修改版本头文件里的版本号并提交
+git commit -am "release: v0.2.2"
+# 2. 打标签并推送（标签必须与头文件版本一致）
+git tag v0.2.2
+git push origin main v0.2.2
+```
+
+推送 `v*` 标签会触发 [.github/workflows/release.yml](./.github/workflows/release.yml)：
+
+1. 校验标签 `vX.Y.Z` 与版本头文件一致，不一致直接失败；
+2. 在 `windows-latest` 上构建 Release（含 VTK 示例及其运行库）；
+3. 把 `out/build/x64-Release/Release` 整个目录打成 `MotionGloveSDK_example_vX.Y.Z.zip`
+   （顶层直接是 exe / dll，解压即可运行，约 29 MB）；
+4. 创建 GitHub Release 并上传该 zip（重复推送同一标签会覆盖产物）。
+
+---
+
 ## 注意事项
 
 - Linux 脚本存储在 VMware hgfs 共享文件夹时，`make` 可能输出时钟偏差警告（`文件修改时间在未来`），这是宿主机与虚拟机时钟差异导致的，**不影响构建结果**，可忽略。

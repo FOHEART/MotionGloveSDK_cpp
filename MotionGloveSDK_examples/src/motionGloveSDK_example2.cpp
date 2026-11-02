@@ -41,6 +41,7 @@ int main(int argc, char* argv[])
 	SetConsoleCP(CP_UTF8);
 #endif
     printf("%s", HEADER_COMMENT);
+    PrintGloveExampleVersion("motionGloveSDK_example2");
 
     int rxPortDefault = 5001;
 

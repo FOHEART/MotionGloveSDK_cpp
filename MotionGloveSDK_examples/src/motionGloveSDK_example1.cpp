@@ -46,6 +46,7 @@ int main(int argc, char* argv[])
  	如果不想每次程序打开都打印使用说明，注释掉下面这行代码即可
     */
     printf("%s", HEADER_COMMENT);
+    PrintGloveExampleVersion("motionGloveSDK_example1");
 
     int rxPortDefault = 5001;
 

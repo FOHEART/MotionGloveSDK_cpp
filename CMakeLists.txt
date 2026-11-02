@@ -1,8 +1,21 @@
 ﻿# 设置CMake最低版本要求
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
+# 示例发布版本号以 MotionGloveSDK_examples/inc/motionGloveSDK_version.h 为唯一来源，
+# 发布工作流会校验它与 tag 一致。
+set(MGSDK_EXAMPLE_VERSION_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/MotionGloveSDK_examples/inc/motionGloveSDK_version.h")
+file(READ "${MGSDK_EXAMPLE_VERSION_HEADER}" MGSDK_EXAMPLE_VERSION_CONTENT)
+foreach(_part MAJOR MINOR PATCH)
+    if(NOT MGSDK_EXAMPLE_VERSION_CONTENT MATCHES "#define[ \t]+MOTIONGLOVE_EXAMPLE_VERSION_${_part}[ \t]+([0-9]+)")
+        message(FATAL_ERROR "无法从 ${MGSDK_EXAMPLE_VERSION_HEADER} 解析 MOTIONGLOVE_EXAMPLE_VERSION_${_part}")
+    endif()
+    set(MGSDK_EXAMPLE_VERSION_${_part} "${CMAKE_MATCH_1}")
+endforeach()
+set(MGSDK_EXAMPLE_VERSION "${MGSDK_EXAMPLE_VERSION_MAJOR}.${MGSDK_EXAMPLE_VERSION_MINOR}.${MGSDK_EXAMPLE_VERSION_PATCH}")
+
 # 设置项目名称
-project(MotionGloveSDK_examples VERSION 1.0 LANGUAGES C CXX)
+project(MotionGloveSDK_examples VERSION ${MGSDK_EXAMPLE_VERSION} LANGUAGES C CXX)
+message(STATUS "MotionGloveSDK_example 版本: ${MGSDK_EXAMPLE_VERSION}")
 # 关键：添加库的子目录，这将引导CMake去执行 子目录下的 CMakeLists.txt
 add_subdirectory(MotionGloveSDK)        
 # 只保留 Debug 和 Release 配置
@@ -45,6 +58,9 @@ if("${MotionGloveSDK_ROOT}" STREQUAL "")
 endif()
 message(STATUS "MotionGloveSDK库根目录: ${MotionGloveSDK_ROOT}")
 
+# 示例公共头目录（motionGloveSDK_version.h 等）
+set(MGSDK_EXAMPLE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/MotionGloveSDK_examples/inc")
+
 # 遍历找到的每个源文件
 foreach(source_file IN LISTS MAIN_SOURCES)
    
@@ -69,7 +85,7 @@ foreach(source_file IN LISTS MAIN_SOURCES)
 
     # 引入MotionGloveSDK库
     target_link_libraries(${executable_name} PRIVATE MotionGloveSDK)
-    target_include_directories(${executable_name} PRIVATE "${MotionGloveSDK_ROOT}/include")
+    target_include_directories(${executable_name} PRIVATE "${MotionGloveSDK_ROOT}/include" "${MGSDK_EXAMPLE_INCLUDE_DIR}")
 
     # add_library(MotionGloveSDK SHARED IMPORTED) 根据配置不同引入不同的库和dll
    
@@ -125,7 +141,7 @@ if(BUILD_VTK_EXAMPLE)
     endif()
 
     target_link_libraries(${VTK_EXAMPLE_TARGET} PRIVATE MotionGloveSDK ${VTK_LIBRARIES})
-    target_include_directories(${VTK_EXAMPLE_TARGET} PRIVATE "${MotionGloveSDK_ROOT}/include")
+    target_include_directories(${VTK_EXAMPLE_TARGET} PRIVATE "${MotionGloveSDK_ROOT}/include" "${MGSDK_EXAMPLE_INCLUDE_DIR}")
 
     # VTK requires autoinit macros to wire up factory/rendering modules
     vtk_module_autoinit(
