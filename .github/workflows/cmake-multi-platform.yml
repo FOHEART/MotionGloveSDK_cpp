@@ -239,9 +239,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
+          echo DIAG cwd=%CD%
           call scripts\deploy.bat NoSuchConfig
-          if not errorlevel 1 exit /b 1
-          echo [OK] deploy 错误分支返回 1
+          echo DIAG errorlevel=%ERRORLEVEL%
+          if not errorlevel 1 (
+              echo ::error::deploy.bat exited %ERRORLEVEL%, expected 1+
+              exit /b 1
+          )
+          echo [OK] deploy error branch returned 1
 
       - name: sh branch under Git Bash, CRLF workspace (Windows)
         if: runner.os == 'Windows'
@@ -261,9 +266,9 @@ jobs:
           if errorlevel 1 (
               call scripts\open_in_vscode.bat
               if not errorlevel 1 exit /b 1
-              echo [OK] open_in_vscode 缺 code 分支返回 1
+              echo [OK] open_in_vscode missing-code branch returned 1
           ) else (
-              echo [SKIP] runner 自带 code，跳过缺依赖分支
+              echo [SKIP] runner has code, skip missing-dependency branch
           )
 
       - name: Package via scripts (Windows)
@@ -273,5 +278,5 @@ jobs:
           call scripts\package.bat
           if errorlevel 1 exit /b 1
           dir /b out\pack\*.zip
-          echo [OK] 打包成功
+          echo [OK] package created
 

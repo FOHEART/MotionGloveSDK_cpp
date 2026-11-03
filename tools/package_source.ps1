@@ -84,13 +84,70 @@ Write-Host "[1/5] 准备暂存目录：$stageDir"
 if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
 
-$robocopyArgs = @(
-    $repoRoot, $stageDir, '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/NP',
-    '/XD'
-) + $excludeDirs + @('/XF') + $excludeFiles
-& robocopy @robocopyArgs | Out-Null
-# robocopy 用 0~7 表示成功（存在差异/复制完成），>= 8 才是失败
-if ($LASTEXITCODE -ge 8) { throw "复制工程文件失败（robocopy 退出码 $LASTEXITCODE）" }
+# 跨平台复制：robocopy 只有 Windows 有；其他平台用 PowerShell 复制，
+# 排除语义对齐 robocopy 的 /XD（任意层级的目录名）/XF（文件名通配）。
+function Copy-TreeWithExcludes {
+    param(
+        [Parameter(Mandatory)] [string]$Source,
+        [Parameter(Mandatory)] [string]$Dest,
+        [string[]]$ExcludeDirNames = @(),
+        [string[]]$ExcludeFilePatterns = @(),
+        [string[]]$ExcludeAbsolutePaths = @()
+    )
+    $sourceRoot = (Resolve-Path -LiteralPath $Source).Path
+    New-Item -ItemType Directory -Path $Dest -Force | Out-Null
+    foreach ($item in Get-ChildItem -LiteralPath $sourceRoot -Recurse -Force) {
+        $rel = $item.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
+        $skip = $false
+        foreach ($abs in $ExcludeAbsolutePaths) {
+            if ($item.FullName -eq $abs -or
+                $item.FullName.StartsWith("$abs\") -or $item.FullName.StartsWith("$abs/")) {
+                $skip = $true; break
+            }
+        }
+        if (-not $skip) {
+            # 任意一级祖先目录命中排除名即跳过（等价 robocopy /XD 的任意层级语义）
+            $segs = $rel -split '[\\/]'
+            for ($s = 0; $s -lt $segs.Count - 1; $s++) {
+                if ($ExcludeDirNames -contains $segs[$s]) { $skip = $true; break }
+            }
+        }
+        if (-not $skip -and $item.PSIsContainer -and ($ExcludeDirNames -contains $item.Name)) { $skip = $true }
+        if (-not $skip -and -not $item.PSIsContainer) {
+            foreach ($pat in $ExcludeFilePatterns) {
+                if ($item.Name -like $pat) { $skip = $true; break }
+            }
+        }
+        if ($skip) { continue }
+        $dst = Join-Path $Dest $rel
+        if ($item.PSIsContainer) {
+            New-Item -ItemType Directory -Path $dst -Force | Out-Null
+        } else {
+            $dstDir = Split-Path -Parent $dst
+            if (-not (Test-Path -LiteralPath $dstDir)) {
+                New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
+            }
+            Copy-Item -LiteralPath $item.FullName -Destination $dst -Force
+        }
+    }
+}
+
+$robocopy = Get-Command robocopy -ErrorAction SilentlyContinue
+if ($robocopy) {
+    $robocopyArgs = @(
+        $repoRoot, $stageDir, '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/NP',
+        '/XD'
+    ) + $excludeDirs + @('/XF') + $excludeFiles
+    & robocopy @robocopyArgs | Out-Null
+    # robocopy 用 0~7 表示成功（存在差异/复制完成），>= 8 才是失败
+    if ($LASTEXITCODE -ge 8) { throw "复制工程文件失败（robocopy 退出码 $LASTEXITCODE）" }
+} else {
+    Write-Host '  未找到 robocopy（非 Windows），改用 PowerShell 复制'
+    Copy-TreeWithExcludes -Source $repoRoot -Dest $stageDir `
+        -ExcludeDirNames $excludeDirs `
+        -ExcludeFilePatterns $excludeFiles `
+        -ExcludeAbsolutePaths @((Join-Path $repoRoot 'docs/html'))
+}
 
 Write-Host '[2/5] 复制预编译产物到包内 preBuild（install / install_example）'
 $preBuildRoot = Join-Path $stageDir 'preBuild'
@@ -110,8 +167,12 @@ if ($SkipPreBuild) {
         }
         $dst = Join-Path $preBuildRoot $item.Name
         New-Item -ItemType Directory -Path $dst -Force | Out-Null
-        & robocopy $item.Source $dst /E /NFL /NDL /NJH /NJS /NP | Out-Null
-        if ($LASTEXITCODE -ge 8) { throw "复制 $($item.Source) 失败（robocopy 退出码 $LASTEXITCODE）" }
+        if ($robocopy) {
+            & robocopy $item.Source $dst /E /NFL /NDL /NJH /NJS /NP | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "复制 $($item.Source) 失败（robocopy 退出码 $LASTEXITCODE）" }
+        } else {
+            Copy-TreeWithExcludes -Source $item.Source -Dest $dst
+        }
         $stat = Get-ChildItem -LiteralPath $dst -Recurse -File | Measure-Object -Property Length -Sum
         $sizeMb = [math]::Round($stat.Sum / 1MB, 1)
         Write-Host ("  preBuild\{0}：{1} 个文件，{2} MB" -f $item.Name, $stat.Count, $sizeMb)
@@ -130,8 +191,8 @@ if (Test-Path -LiteralPath $readmePath) {
     # 1) 去掉列在目录树/入口表里的 git 拉取脚本与打包说明（客户包不带这些能力）
     $keptLines = @($readmeLines | Where-Object { $_ -notmatch 'git_pull_latest|源码分发包' })
 
-    # 2) 去掉仅面向内部的整节（发布流程 / 给客户打包的说明）
-    $internalSections = @('^##\s*发布', '^##\s*源码分发包')
+    # 2) 去掉仅面向内部的整节（CI / 发布流程 / 给客户打包的说明）
+    $internalSections = @('^##\s*CI', '^##\s*发布', '^##\s*源码分发包')
     foreach ($sectionPattern in $internalSections) {
         $startIdx = -1
         for ($i = 0; $i -lt $keptLines.Count; $i++) {
@@ -176,12 +237,20 @@ Write-Host '  未发现 .git 目录、git 操作脚本、脚本内的 git 命令
 
 Write-Host "[5/5] 压缩为 $zipPath"
 if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
-$sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
-if (-not $sevenZip) { $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
-if (-not (Test-Path $sevenZip)) { $sevenZip = Join-Path ${env:ProgramFiles(x86)} '7-Zip\7z.exe' }
-# 工程内的离线工具箱（含预编译运行库时压缩量较大，7za 比 Compress-Archive 快得多）
-if (-not (Test-Path $sevenZip)) { $sevenZip = 'D:\autotools\7z\7za.exe' }
-if (Test-Path $sevenZip) {
+# 7z 检测：非 Windows 平台没有 ProgramFiles，直接看 PATH（没有就回退 Compress-Archive）
+$isWindowsPs = (-not $PSVersionTable.Platform) -or ($PSVersionTable.Platform -eq 'Win32NT')
+$sevenZip = $null
+if ($isWindowsPs) {
+    $sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
+    if (-not $sevenZip) { $sevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe' }
+    if (-not (Test-Path $sevenZip)) { $sevenZip = Join-Path ${env:ProgramFiles(x86)} '7-Zip\7z.exe' }
+    # 工程内的离线工具箱（含预编译运行库时压缩量较大，7za 比 Compress-Archive 快得多）
+    if (-not (Test-Path $sevenZip)) { $sevenZip = 'D:\autotools\7z\7za.exe' }
+    if (-not (Test-Path $sevenZip)) { $sevenZip = $null }
+} else {
+    $sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
+}
+if ($sevenZip) {
     Push-Location $stageRoot
     & $sevenZip a -tzip -mx=5 $zipPath $packageName | Out-Null
     Pop-Location
