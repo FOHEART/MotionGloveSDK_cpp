@@ -1,6 +1,8 @@
 :; exec sh -c "$(sed -n '/^#__SH__/,$p' "$0" | tr -d '\r')" "$0" "$@" #
 @echo off
-REM ============================================================================
+chcp 65001 >nul
+REM  chcp 必须在任何中文（多字节）内容之前执行：cmd 切换代码页会重定位批处理读取位置，
+REM  若前面已有多字节内容，切换后可能错位跳行（本地与 CI 初始代码页不同，症状不稳定）。
 REM  gen_docs.bat  --  生成 Doxygen API 文档（中文 HTML）
 REM
 REM  用法（Windows）：scripts\gen_docs.bat
@@ -11,7 +13,6 @@ REM        （WARN_AS_ERROR 已开启）。产物：docs/html/index.html
 REM  可用环境变量 DOXYGEN 指定 doxygen 可执行文件路径。
 REM ============================================================================
 setlocal
-chcp 65001 >nul
 if not defined DOXYGEN set "DOXYGEN=D:\autotools\doxygen-1.11.0\doxygen.exe"
 for %%I in ("%~dp0..") do set "ROOT=%%~fI"
 set "LOGFILE=%ROOT%\out\doxygen\doxygen_warnings.log"

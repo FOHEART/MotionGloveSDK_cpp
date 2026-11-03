@@ -240,7 +240,8 @@ jobs:
         shell: cmd
         run: |
           echo DIAG cwd=%CD%
-          call scripts\deploy.bat NoSuchConfig
+          rem 用 cmd /c 隔离子进程：脚本内部的 chcp 不会影响本 step 的解析位置
+          cmd /c scripts\deploy.bat NoSuchConfig
           echo DIAG errorlevel=%ERRORLEVEL%
           if not errorlevel 1 (
               echo ::error::deploy.bat exited %ERRORLEVEL%, expected 1+
@@ -264,7 +265,7 @@ jobs:
         run: |
           where code >nul 2>nul
           if errorlevel 1 (
-              call scripts\open_in_vscode.bat
+              cmd /c scripts\open_in_vscode.bat
               if not errorlevel 1 exit /b 1
               echo [OK] open_in_vscode missing-code branch returned 1
           ) else (
@@ -275,7 +276,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          call scripts\package.bat
+          cmd /c scripts\package.bat
           if errorlevel 1 exit /b 1
           dir /b out\pack\*.zip
           echo [OK] package created

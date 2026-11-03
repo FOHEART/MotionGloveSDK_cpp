@@ -1,6 +1,8 @@
 :; exec sh -c "$(sed -n '/^#__SH__/,$p' "$0" | tr -d '\r')" "$0" "$@" #
 @echo off
-REM ============================================================================
+chcp 65001 >nul
+REM  chcp 必须在任何中文（多字节）内容之前执行：cmd 切换代码页会重定位批处理读取位置，
+REM  若前面已有多字节内容，切换后可能错位跳行（本地与 CI 初始代码页不同，症状不稳定）。
 REM  test.bat -- 构建并运行单元测试（GoogleTest / ctest）
 REM
 REM  用法（Windows）：
@@ -15,7 +17,6 @@ REM  构建树：out\build\tdd-tests，ctest 日志：out\build\tdd-tests\Testin
 REM  Windows 逻辑在 tools\build_and_test.bat（会先 call vcvars64 再 configure）。
 REM ============================================================================
 setlocal
-chcp 65001 >nul
 for %%I in ("%~dp0..") do set "ROOT=%%~fI"
 call "%ROOT%\tools\build_and_test.bat" %*
 exit /b %errorlevel%
