@@ -239,18 +239,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          >>diag.txt echo DIAG cwd=%CD%
-          chcp >>diag.txt
-          git ls-files --eol scripts/deploy.bat >>diag.txt 2>&1
-          powershell -NoProfile -Command "$b=[IO.File]::ReadAllBytes('scripts\deploy.bat'); Add-Content diag.txt ('bytes0-50=' + (($b[0..50]) -join ','))"
-          rem keep this step pure ASCII: a child chcp switches the shared console
-          rem codepage and would corrupt re-reading of a multibyte step file
-          cmd /c scripts\deploy.bat NoSuchConfig >>diag.txt 2>&1
-          >>diag.txt echo DIAG deploy_rc=%ERRORLEVEL%
+          rem deploy.bat must exit 1 for a nonexistent build tree; note that
+          rem a successful echo does NOT reset ERRORLEVEL, so reset it with verify
+          cmd /c scripts\deploy.bat NoSuchConfig
           if not errorlevel 1 (
-              >>diag.txt echo DIAG guard-fired
+              echo ::error::deploy.bat should exit 1 for missing build tree
               exit /b 1
           )
+          verify >nul
           echo [OK] deploy error branch returned 1
 
       - name: sh branch under Git Bash, CRLF workspace (Windows)
@@ -271,6 +267,7 @@ jobs:
           if errorlevel 1 (
               cmd /c scripts\open_in_vscode.bat
               if not errorlevel 1 exit /b 1
+              verify >nul
               echo [OK] open_in_vscode missing-code branch returned 1
           ) else (
               echo [SKIP] runner has code, skip missing-dependency branch
@@ -284,16 +281,4 @@ jobs:
           if errorlevel 1 exit /b 1
           dir /b out\pack\*.zip
           echo [OK] package created
-
-      - name: Publish diagnostics to job summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "### Windows scripts job diagnostics"
-            echo '```text'
-            cat diag.txt 2>/dev/null || echo "(no diag.txt)"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          cat diag.txt 2>/dev/null || true
 

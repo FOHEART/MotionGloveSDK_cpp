@@ -1,0 +1,6 @@
+DIAG cwd=D:\Dev\MotionGloveSDK_cpp
+Active code page: 65001
+i/lf    w/crlf  attr/                 	scripts/deploy.bat
+bytes0-50=58,59,32,101,120,101,99,32,115,104,32,45,99,32,34,36,40,115,101,100,32,45,110,32,39,47,94,35,95,95,83,72,95,95,47,44,36,112,39,32,34,36,48,34,32,124,32,116,114,32,45
+[ERROR] 未找到构建树 out\build\x64-NoSuchConfig，请先运行 scripts\build.bat。
+DIAG deploy_rc=1
