@@ -6,7 +6,7 @@
  * @details
  * 演示 SDK 最小使用闭环：ListenUDPPort -> 循环查询新帧（isGloveNewFramePending）
  * -> 取帧（GetSkeletons42Frame）-> 打印统一行首（帧序号 + 骨骼段数）。
- * 默认绑定 127.0.0.1:5001，数据源由 MotionVenus 软件按转发规则推送。
+ * 默认绑定 0.0.0.0:5001（本机全部网卡），数据源由 MotionVenus 软件按转发规则推送。
  */
 #ifdef _WIN32
 #include <windows.h>
@@ -22,9 +22,10 @@
 /** @brief 使用说明文本：程序启动后打印到控制台，说明运行流程。 */
 static const char* HEADER_COMMENT =
     u8"/*******motionGloveSDK_example1*********/\r\n"
-    u8"用来测试MotionGloveSDK 的数据转发，默认使用UDP监听本地5001端口\r\n"
+    u8"用来测试MotionGloveSDK 的数据转发，默认监听本机所有网卡（0.0.0.0）的5001端口\r\n"
     u8"使用流程：1、打开MotionGlove软件，并且手套连接正常\r\n"
     u8"2、确保在软件菜单栏->设置->插件->数据转发中添加了127.0.0.1端口5000（软件默认已添加）\r\n"
+    u8"局域网部署：数据转发目标填运行本程序的电脑IP，端口5001，并在该电脑放行入站UDP\r\n"
     u8"如果运行正常，会打印出收到数据帧的帧序号，每秒60帧\r\n"
     u8"/*******************************************/\n";
 
@@ -50,7 +51,7 @@ int main(int argc, char* argv[])
 
     int rxPortDefault = 5001;
 
-    printf("UDP Bind IP:port: 127.0.0.1:%d\n", rxPortDefault);
+    printf("UDP Bind IP:port: 0.0.0.0:%d (all interfaces)\n", rxPortDefault);
     int nRet = MotionGloveSDK_ListenUDPPort(rxPortDefault);
 
     if (nRet == -1)

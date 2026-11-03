@@ -890,13 +890,13 @@ private:
         if (this->PortOpened)
         {
             std::snprintf(buffer, sizeof(buffer),
-                          "UDP 127.0.0.1:%d  %s\n骨骼模式：%s\n帧号：%s",
+                          "UDP 0.0.0.0:%d（所有网卡）  %s\n骨骼模式：%s\n帧号：%s",
                           this->Port, portState, formatName, frameText);
         }
         else
         {
             std::snprintf(buffer, sizeof(buffer),
-                          "UDP 127.0.0.1:%d  %s（code=%d）\n骨骼模式：%s\n帧号：%s",
+                          "UDP 0.0.0.0:%d（所有网卡）  %s（code=%d）\n骨骼模式：%s\n帧号：%s",
                           this->Port, portState, this->PortErrorCode, formatName, frameText);
         }
 
@@ -1223,7 +1223,7 @@ int main(int argc, char* argv[])
     SetConsoleCP(CP_UTF8);
 #endif
 
-    printf("motionGloveSDK_example_vtk v%s: binding UDP 127.0.0.1:%d\n",
+    printf("motionGloveSDK_example_vtk v%s: binding UDP 0.0.0.0:%d (all interfaces)\n",
            MOTIONGLOVE_EXAMPLE_VERSION_STRING, kDefaultUdpPort);
     const int listenRet = MotionGloveSDK_ListenUDPPort(kDefaultUdpPort);
     if (listenRet != 0)

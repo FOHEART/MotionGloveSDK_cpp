@@ -68,7 +68,7 @@ static const char* HEADER_COMMENT =
     while (true)
     {
         loopCounter++;
-        printf("\n[Test %d] Try bind UDP 127.0.0.1:%d\n", loopCounter, rxPortDefault);
+        printf("\n[Test %d] Try bind UDP 0.0.0.0:%d (all interfaces)\n", loopCounter, rxPortDefault);
 
         /*
          * CN: 绑定UDP端口并开始接收数据。

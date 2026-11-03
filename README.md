@@ -132,7 +132,7 @@ cmake --install out/build/x64-Release --prefix out/install/x64-Release
 
 ### VTK 3D 可视化示例（motionGloveSDK_example_vtk）
 
-该示例会在启动时打开一个 VTK 3D 窗口，并绑定本机 UDP `5001` 端口接收手套骨骼数据（32 段）。
+该示例会在启动时打开一个 VTK 3D 窗口，并绑定本机全部网卡（`0.0.0.0`）的 UDP `5001` 端口接收手套骨骼数据（32 段）。
 窗口里原点处绘制了三色坐标轴（X 红 / Y 绿 / Z 蓝）与 XZ 平面的地平面网格
 （格距 0.1 m，范围 50 cm × 50 cm），作为位置参考。
 
@@ -348,7 +348,7 @@ MotionGloveSDK_cpp_v<版本号>/
 
 ![数据转发设置](./tools/images/image_2.png)
 
-- **局域网测试**：填入运行 MotionGloveSDK 的 PC 网络 IP 地址。
+- **局域网测试**：填入运行 MotionGloveSDK 的 PC 网络 IP 地址，端口填 SDK 监听的 `5001`；并确认该 PC 已放行入站 UDP（见"收不到数据时的排查"）。
 - **Ubuntu 测试**：填入运行 MotionGloveSDK 的 PC 网络 IP 地址，确保与 Ubuntu 系统网络畅通。
 
 转发规则如下：
@@ -367,7 +367,7 @@ MotionGloveSDK_cpp_v<版本号>/
 
 ### 2.1 motionGloveSDK_example1
 
-**测试目的：** 测试是否接收到了 MotionGloveSDK 的数据转发，默认使用 UDP 监听本地 `5001` 端口。
+**测试目的：** 测试是否接收到了 MotionGloveSDK 的数据转发，默认使用 UDP 监听本机全部网卡（`0.0.0.0`）的 `5001` 端口。
 
 **使用流程：**
 
@@ -460,3 +460,37 @@ MotionGloveSDK_cpp_v<版本号>/
 > 整体弯曲角度 = 三段 Y 轴之和：57.37 + 62.69 + 62.69 = **182.75°**
 
 食指、中指、无名指、小指均可按照上述方法计算相对角度。
+
+## 收不到数据时的排查（局域网部署）
+
+SDK 绑定的是 `0.0.0.0:<端口>`（本机全部网卡），所以"收不到"通常不是绑定地址的问题。按下面顺序定位：
+
+1. **确认绑定成功**：程序启动应打印 `Bind port 5001 success`；若提示
+   `Bind local port 5001 failed!`，说明端口已被占用（多为上一次实例没退出），先结束占用进程。
+2. **确认报文确实到达本机协议栈**：
+   - 在目标电脑执行 `netstat -ano -p UDP | findstr :5001`，应看到 `0.0.0.0:5001` 及进程 PID；
+   - 在 Wireshark 里检查数据包的 **Destination IP / MAC 是不是本机**。抓包网卡的混杂模式会显示
+     "发给别的机器"的包，这类包协议栈会直接丢弃，SDK 永远收不到。
+3. **Windows 防火墙（现场最常见原因）**：Wireshark（Npcap）在防火墙之前抓包，报文被防火墙丢弃时照样能看到，
+   而 SDK 的 socket 一个包都收不到（诊断日志里没有 `[info]`）。
+   - 一键放行（管理员命令行）：`tools\add_firewall_rule.bat 5001`
+   - 等价手工命令：
+
+     ```bat
+     netsh advfirewall firewall add rule name="MotionGloveSDK UDP 5001" dir=in action=allow protocol=UDP localport=5001 remoteip=LocalSubnet
+     ```
+
+     需要允许任意来源（例如跨网段）时，把 `remoteip=LocalSubnet` 换成 `remoteip=any`，
+     或执行 `tools\add_firewall_rule.bat 5001 any`。
+   - 首次运行时弹出的"允许访问"要勾选专用/公用网络；
+   - 若公司策略禁止改防火墙，可临时关闭防火墙复测：能收到即确认是此原因。
+4. **打开 SDK 收包诊断**（环境变量，默认关闭）后运行程序：
+
+   ```bat
+   set MOTIONGLOVE_SDK_UDP_DEBUG=1
+   ```
+
+   - 打印 `[info] UDP datagram received: ... head="Glove1 ..."`：报文已进入 socket；
+   - 没有这一行：报文没到 socket，回到第 2、3 步；
+   - 打印 `[warn] UDP datagram ignored (non-CSV / non-glove CSV) ... head="..."`：报文到了但格式不被识别。
+     帧必须以 `Glove` 开头（上位机的演员名为空时整帧以空格开头，会被丢弃），检查数据转发规则。

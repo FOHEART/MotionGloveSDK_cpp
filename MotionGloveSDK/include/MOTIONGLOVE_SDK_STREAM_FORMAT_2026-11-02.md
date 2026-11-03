@@ -655,7 +655,8 @@ CSV 录制写入的就是本文描述的同一份文本（`h2CsvRecordConfig::re
 ### 9.1 取帧流程
 
 ```c
-/* 绑定端口：失败返回非 0（多半是端口已被占用），此时收不到任何数据 */
+/* 绑定端口：失败返回非 0（多半是端口已被占用），此时收不到任何数据。
+   绑定地址固定为 0.0.0.0（INADDR_ANY），即本机全部网卡，不局限于 127.0.0.1。 */
 if (MotionGloveSDK_ListenUDPPort(5001) != 0) { /* 处理失败 */ }
 
 for (;;)
@@ -683,7 +684,7 @@ for (;;)
 
 | 接口                                         | 作用                    | 失败条件                                                     |
 | -------------------------------------------- | ----------------------- | ------------------------------------------------------------ |
-| `MotionGloveSDK_ListenUDPPort(port)`         | 绑定并开始接收          | 端口被占用、socket 创建失败                                  |
+| `MotionGloveSDK_ListenUDPPort(port)`         | 绑定本机 **0.0.0.0**（全部网卡）并开始接收 | 端口被占用、socket 创建失败                                  |
 | `MotionGloveSDK_isGloveNewFramePending(name)` | 是否有新帧待取          | 名字为空 / 找不到该流 → false                                |
 | `MotionGloveSDK_GetSkeletonsFrameType()`     | 缓存帧的格式            | 流不存在、`pFormat == NULL`                                  |
 | `MotionGloveSDK_GetSkeletons42Frame()`       | 取 42 段帧              | 流不存在、**缓存帧不是 42 段**、指针为 NULL                  |

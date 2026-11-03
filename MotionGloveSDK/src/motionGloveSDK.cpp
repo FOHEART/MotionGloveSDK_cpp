@@ -39,6 +39,9 @@
 /** @brief 手套数据流管理器数组的最大条数（最多同时管理的数据流数）。 */
 #define SUIT_MGR_MAXLEN (32)
 
+/** @brief 监听地址：INADDR_ANY 即 0.0.0.0，表示绑定本机全部网卡（不限 127.0.0.1）。 */
+#define MOTIONGLOVE_SDK_BIND_ADDR INADDR_ANY
+
 /** @brief 保护 dataset 的读写锁：所有查询/新增/取帧操作需持锁访问。 */
 ReadWriteLock gloveSuitManagerLock;
 
@@ -118,6 +121,71 @@ void resetKHHS42PosAttitude(KHHS42PosAttitude_TypeDef* input)
 void resetKHHS32PosAttitude(KHHS32PosAttitude_TypeDef* input)
 {
 	memset((void*)input, 0x00, sizeof(KHHS32PosAttitude_TypeDef));
+}
+
+/**
+ * @brief 判断是否开启 UDP 收包诊断日志。
+ * @details 环境变量 MOTIONGLOVE_SDK_UDP_DEBUG 非空且首字符不是 '0' 时开启；
+ *          开启后会在收到第一个报文时打印来源地址与帧头预览，便于排查
+ *          "Wireshark 能看到包、SDK 却收不到" 这类现场问题。
+ * @return true 表示已开启；false 表示未开启（默认）。
+ */
+static bool MotionGloveSDK_IsUdpDebugEnabled(void)
+{
+	static int cached = -1; /* -1 未判断，0 关闭，1 开启 */
+	if (cached < 0)
+	{
+		const char* value = getenv("MOTIONGLOVE_SDK_UDP_DEBUG");
+		cached = (value != NULL && value[0] != 0 && value[0] != '0') ? 1 : 0;
+	}
+	return 1 == cached;
+}
+
+/**
+ * @brief 把报文开头转成可打印文本，控制字符替换为 '.'。
+ * @param out [out] 输出缓冲区（始终以 0 结尾）。
+ * @param outSize [in] 输出缓冲区大小（含结尾 0）。
+ * @param data [in] 原始报文数据。
+ * @param len [in] 原始报文长度。
+ */
+static void MotionGloveSDK_MakePrintableHead(char* out, size_t outSize, const char* data, int len)
+{
+	if (out == NULL || outSize == 0)
+	{
+		return;
+	}
+	size_t copyLen = (len > 0) ? (size_t)len : 0;
+	if (copyLen > outSize - 1)
+	{
+		copyLen = outSize - 1;
+	}
+	for (size_t i = 0; i < copyLen; i++)
+	{
+		unsigned char ch = (unsigned char)data[i];
+		out[i] = (ch >= 0x20 && ch < 0x7F) ? (char)ch : '.';
+	}
+	out[copyLen] = 0;
+}
+
+/**
+ * @brief 打印"已收到但未处理"的 UDP 报文（首条与每 3000 条一次）。
+ * @details 这类报文原先被静默丢弃，现场很难区分"网络没到"与"到了但格式不匹配"，
+ *          因此保留低频告警：首条立即打印，之后按累计次数节流。
+ * @param reason [in] 未处理原因。
+ * @param data [in] 报文数据。
+ * @param len [in] 报文长度。
+ */
+static void MotionGloveSDK_WarnUnhandledDatagram(const char* reason, const char* data, int len)
+{
+	static unsigned int unhandledCount = 0;
+	++unhandledCount;
+	if (1 == unhandledCount || 0 == (unhandledCount % 3000))
+	{
+		char head[65] = { 0 };
+		MotionGloveSDK_MakePrintableHead(head, sizeof(head), data, len);
+		printf("[warn] UDP datagram ignored (%s): %d bytes, head=\"%s\", total %u\r\n",
+			reason, len, head, unhandledCount);
+	}
 }
 
 /**
@@ -239,6 +307,23 @@ static void* ThreadProc(void* lpParam)
 			KHHS42PosAttitude.remotePort = from.sin_port;
 			KHHS42PosAttitude.sdkVersion = MotionGloveSDK_getVersion();
 			//printf("FrameLength:%d Bytes\r\n", nRet);
+
+			if (MotionGloveSDK_IsUdpDebugEnabled())
+			{
+				static bool firstDatagramReported = false;
+				if (!firstDatagramReported)
+				{
+					firstDatagramReported = true;
+					char head[65] = { 0 };
+					MotionGloveSDK_MakePrintableHead(head, sizeof(head), rxBuffer, nRet);
+					printf("[info] UDP datagram received: %d bytes from %u.%u.%u.%u:%u, head=\"%s\"\r\n",
+						nRet,
+						KHHS42PosAttitude.remoteIP[0], KHHS42PosAttitude.remoteIP[1],
+						KHHS42PosAttitude.remoteIP[2], KHHS42PosAttitude.remoteIP[3],
+						(unsigned int)ntohs(from.sin_port), head);
+				}
+			}
+
 			if (0 == isFrameCSVFormat(rxBuffer))
 			{
 				/*
@@ -324,12 +409,18 @@ static void* ThreadProc(void* lpParam)
 
 					//printf("");
 				}
+				else
+				{
+					/* 以 "Actor" 开头等其它 CSV（全身动捕）不归手套流处理，低频提示便于现场定位 */
+					MotionGloveSDK_WarnUnhandledDatagram("non-glove CSV", rxBuffer, nRet);
+				}
 			}
 			else
 			{
 				/*
 				不是json字符串 有可能是二进制字符
 				*/
+				MotionGloveSDK_WarnUnhandledDatagram("non-CSV", rxBuffer, nRet);
 				uint16_t protocolVersion = 0;
 				memcpy(&protocolVersion, rxBuffer, sizeof(protocolVersion));
 
@@ -487,7 +578,7 @@ static void MotionGloveSDK_PrintUDPPortOccupier(int nPort)
 
 /**
  * @brief 关闭旧套接字并重新创建、绑定 UDP 套接字到本地端口。
- * @param local 待绑定的本地地址结构（INADDR_ANY 表示任意网卡）。
+ * @param local 待绑定的本地地址结构（sin_addr 为 INADDR_ANY 时监听本机全部网卡）。
  * @param nPort 绑定的本地端口号。
  * @return 0 绑定成功；-1 创建/绑定失败。
  */
@@ -581,7 +672,7 @@ int MotionGloveSDK_ListenUDPPort(int nPort)
 	struct sockaddr_in local;
 	local.sin_family = AF_INET;
 	local.sin_port = htons(nPort); ///监听端口
-	local.sin_addr.s_addr = INADDR_ANY; ///本机
+	local.sin_addr.s_addr = MOTIONGLOVE_SDK_BIND_ADDR; ///0.0.0.0：本机所有网卡（含 127.0.0.1 与局域网 IP）
 
 #ifdef _WIN32
 	{

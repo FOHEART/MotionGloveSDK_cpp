@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
 
     int rxPortDefault = 5001;
 
-    printf("UDP Bind IP:port: 127.0.0.1:%d\n", rxPortDefault);
+    printf("UDP Bind IP:port: 0.0.0.0:%d (all interfaces)\n", rxPortDefault);
     int nRet = MotionGloveSDK_ListenUDPPort(rxPortDefault);
 
     if (nRet == -1)

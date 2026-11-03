@@ -59,6 +59,11 @@ MGSDK_DLL_API  unsigned int MotionGloveSDK_getVersion(void);
  * @brief Bind a local UDP port and wait for incoming data.
  * @brief (中文) 绑定一个本机的端口，等待读取数据。
  *
+ * Binds to 0.0.0.0 (INADDR_ANY), so datagrams sent to any local NIC/IP are received,
+ * not only to 127.0.0.1.
+ * 绑定地址为 0.0.0.0（INADDR_ANY），即监听本机全部网卡，局域网内其它机器
+ * 发往本机任意 IP 的数据同样能收到，不局限于 127.0.0.1。
+ *
  * @param nPort Port number (1024 ~ 65535), default 5001.
  * @return 0 on success; -1 on failure (commonly port already in use).
  */
