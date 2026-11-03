@@ -3,12 +3,11 @@
 ## 工程结构
 
 ```
-MotionGloveSDK/                        # 仓库根目录
+MotionGloveSDK/                        # 仓库根目录（只放源码、脚本、文档）
 ├── CMakeLists.txt                     # 顶层 CMake，构建 SDK 库 + 示例程序
-├── CMakeSettings.json                 # Visual Studio CMake 配置文件
+├── .vscode/settings.json              # 唯一 IDE 配置来源：构建目录固定 out/build/vscode
 ├── LICENSE
 ├── README.md
-├── 编译教程.pdf
 │
 ├── MotionGloveSDK/                    # SDK 库子工程
 │   ├── CMakeLists.txt                 # 编译为共享库 (DLL/SO)
@@ -39,14 +38,29 @@ MotionGloveSDK/                        # 仓库根目录
 │       ├── motionGloveSDK_example5.cpp
 │       └── motionGloveSDK_example_vtk.cpp   # VTK 示例（默认编译，-DBUILD_VTK_EXAMPLE=OFF 关闭）
 │
-├── out/                               # 构建输出（git 忽略）
-│   ├── build/x64-Debug/
-│   ├── build/x64-Release/
-│   ├── install/x64-Debug/
-│   └── install/x64-Release/
+├── scripts/                           # 一键脚本入口（只认 out/ 下的路径）
+│   ├── build.bat                      # 配置 + 编译 + 安装 + 汇总示例
+│   ├── test.bat                       # ctest（构建树 out/build/tdd-tests）
+│   ├── deploy.bat                     # 安装到 out/install + 汇总到 out/install_example
+│   ├── package.bat                    # 源码分发包 → out/pack
+│   └── gen_docs.bat                   # Doxygen HTML，告警日志 → out/doxygen
 │
-├── [Windows]build_vs2022.bat          # 一键构建脚本（Visual Studio 2022）
-├── [Windows]build_vs2026.bat          # 一键构建脚本（Visual Studio 2026）
+├── tools/                             # VTK 安装、打包、测试辅助脚本
+│
+├── out/                               # 全部生成物（git 忽略）
+│   ├── build/x64-Debug/               # CLI 构建树（scripts/build.bat）
+│   ├── build/x64-Release/
+│   ├── build/vscode/                  # IDE 构建树（VSCode CMake Tools）
+│   ├── build/tdd-tests/               # 单元测试构建树 + ctest 日志
+│   ├── install/x64-Debug/             # 安装目录（库 + 头文件）
+│   ├── install/x64-Release/
+│   ├── install_example/x64-Debug/     # 示例 + 运行库，可直接运行
+│   ├── install_example/x64-Release/
+│   ├── pack/                          # 源码分发包 ZIP
+│   └── doxygen/                       # Doxygen 告警日志
+│
+├── [Windows]build_vs2022.bat          # 兼容入口 → scripts/build.bat 2022
+├── [Windows]build_vs2026.bat          # 兼容入口 → scripts/build.bat 2026
 ├── [Windows]git_pull_latest.cmd       # 拉取最新代码
 ├── [Windows]open_in_vscode.bat        # 用 VSCode 打开工程
 ├── [Linux]build.sh                    # 一键构建脚本（Linux/Ubuntu）
@@ -60,7 +74,19 @@ MotionGloveSDK/                        # 仓库根目录
 
 ### 快速构建（推荐）
 
-直接运行对应平台的一键脚本，自动完成 Debug 和 Release 两套构建与安装：
+直接运行对应平台的一键脚本，自动完成 Debug 和 Release 两套构建与安装，
+全部产物落在 `out/`（截图/日志/zip 都不会再出现在仓库根目录）：
+
+| 入口 | 说明 |
+| --- | --- |
+| `scripts\build.bat` | 主入口，`scripts\build.bat 2026` 可切 VS 2026，`scripts\build.bat 2022 Release` 只构建单一配置 |
+| `scripts\test.bat` | 构建并运行单元测试（`out\build\tdd-tests`） |
+| `scripts\deploy.bat` | 只做安装 + 示例汇总（`out\install`、`out\install_example`） |
+| `scripts\package.bat` | 打源码分发包（`out\pack`） |
+| `scripts\gen_docs.bat` | 生成 Doxygen HTML，告警日志写 `out\doxygen` |
+
+根目录的 `[Windows]build_vs2022.bat` / `[Windows]build_vs2026.bat` 是双击用的兼容入口，
+内部调用 `scripts\build.bat`。
 
 **Windows（Visual Studio 2022）**
 
@@ -79,6 +105,30 @@ MotionGloveSDK/                        # 仓库根目录
 ```bash
 bash "[Linux]build.sh"
 ```
+
+---
+
+### 在 VSCode 里构建（CMake Tools）
+
+`.vscode/settings.json` 已入库，把 IDE 的构建树固定到 `out/build/vscode`，与命令行脚本的
+`out/build/x64-*` 分目录存放，避免两套生成器抢同一个 `CMakeCache.txt`：
+
+```jsonc
+{
+  "cmake.buildDirectory": "${workspaceFolder}/out/build/vscode",
+  "cmake.installPrefix": "${workspaceFolder}/out/install",
+  "cmake.generator": "Visual Studio 17 2022",
+  "cmake.platform": "x64"
+}
+```
+
+要点：
+
+- 改配置后执行命令面板 → `CMake: Delete Cache and Reconfigure`；状态栏的 `-B` 参数应为
+  `out/build/vscode`。旧缓存（例如根目录 `build/`）可直接删掉。
+- 需要 Debug/Release 时用状态栏 build variant，多配置生成器会忽略 `CMAKE_BUILD_TYPE`。
+- 本工程的 IDE 树也使用 Visual Studio 生成器，因此 exe 在 `out/build/vscode/Debug/`
+  （多配置生成器会自动追加配置子目录），命令行脚本的产物在 `out/build/x64-<配置>/<配置>/`。
 
 ---
 
@@ -111,6 +161,10 @@ cmake -S . -B out/build/x64-Debug -G "Visual Studio 18 2026" -A x64 -DCMAKE_CONF
 cmake --build out/build/x64-Debug --config Debug
 cmake --install out/build/x64-Debug --config Debug --prefix out/install/x64-Debug
 ```
+
+> 同一个 `out/build/x64-*` 目录不能被 VS 2022 与 VS 2026 交替使用（`CMakeCache.txt` 写死了生成器，
+> 换版本会报 `Does not match the generator used previously`）。切换 VS 版本前先删掉对应目录，
+> 或让 `scripts\build.bat 2026` 使用另一台机器/另一份工作区。
 
 ### Linux / Ubuntu
 
@@ -241,7 +295,12 @@ cmake --build out/build/x64-Release --config Release
 | Windows | `MotionGloveSDK.dll` / `MotionGloveSDK.lib` | `out/install/x64-Debug/` |
 | Linux   | `libMotionGloveSDK.so`                        | `out/install/x64-Debug/` |
 
-示例可执行文件生成在各自的 `out/build/x64-Debug/` 或 `out/build/x64-Release/` 目录下。
+示例可执行文件生成在 `out/build/x64-<配置>/<配置>/`（Visual Studio 多配置生成器会自动追加
+配置子目录）；IDE 构建的示例在 `out/build/vscode/<配置>/`。
+
+`cmake --install` 不传 `--prefix` 时默认装到 `out/install`（顶层 `CMakeLists.txt` 里的
+`CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT` 判断），命令行脚本则按配置装到
+`out/install/x64-<配置>/`。
 
 一键构建脚本（`[Windows]build_vs2022.bat` / `[Windows]build_vs2026.bat`）还会把示例程序和
 它们依赖的 DLL 汇总到 `out/install_example/`，按配置分开存放：
@@ -284,10 +343,10 @@ git push origin main v0.2.2
 
 ## 源码分发包（分发给客户）
 
-`[Windows]package_source.bat`（逻辑在 [tools/package_source.ps1](./tools/package_source.ps1)）
-把当前工作区打成 `MotionGloveSDK_cpp_v<版本号>.zip`，版本号取自
+`scripts\package.bat`（逻辑在 [tools/package_source.ps1](./tools/package_source.ps1)）把当前
+工作区打成 `out/pack/MotionGloveSDK_cpp_v<版本号>.zip`，版本号取自
 [motionGloveSDK_version.h](./MotionGloveSDK_examples/inc/motionGloveSDK_version.h)，
-也可命令行指定：`[Windows]package_source.bat 0.2.2`。
+也可命令行指定：`scripts\package.bat 0.2.2`。
 
 压缩包内有一层顶层目录 `MotionGloveSDK_cpp_v<版本号>`，解压后可直接用
 `[Windows]build_vs2022.bat` 等脚本构建。
@@ -317,7 +376,7 @@ MotionGloveSDK_cpp_v<版本号>/
 | 版本控制 | `.git/`（客户拿不到仓库地址与历史，无法 pull 你的代码）、`.gitignore` |
 | git 操作脚本 | `[Windows]git_pull_latest.cmd`、`[Linux]git_pull_latest.sh`，以及 README 里对应的说明 |
 | 内部资料 | `.github/`（CI 与 agent 配置）、`openspec/`、`docs/superpowers/`、`.vscode/` |
-| 构建产物 | `out/`（`out/build`、`out/package` 暂存目录等；`out/install`、`out/install_example` 只以 `preBuild/` 形式进包）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log`；历史遗留的根目录 `build/` 若存在也一并剔除 |
+| 构建产物 | `out/`（`out/build`、`out/pack/staging` 暂存目录等；`out/install`、`out/install_example` 只以 `preBuild/` 形式进包）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log`；历史遗留的根目录 `build/` 若存在也一并剔除 |
 | 本机专用 | `tools/autotools_env.bat`、打包脚本自身 |
 
 脚本打完包会自检：一旦发现残留的 `.git` 目录、git 操作脚本或脚本里的

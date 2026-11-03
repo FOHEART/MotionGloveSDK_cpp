@@ -16,6 +16,22 @@ set(MGSDK_EXAMPLE_VERSION "${MGSDK_EXAMPLE_VERSION_MAJOR}.${MGSDK_EXAMPLE_VERSIO
 # 设置项目名称
 project(MotionGloveSDK_examples VERSION ${MGSDK_EXAMPLE_VERSION} LANGUAGES C CXX)
 message(STATUS "MotionGloveSDK_example 版本: ${MGSDK_EXAMPLE_VERSION}")
+
+# ── 输出目录约定：所有生成物进 out/，源码树只放源码 ────────────────────────
+#   out/build/x64-<配置>   CLI 构建树（scripts\build.bat）
+#   out/build/vscode       IDE 构建树（VSCode CMake Tools / Presets），与 CLI 分目录
+#   out/install/<配置>     安装目录（库 + 头文件）
+#   out/pack               压缩包（源码分发包）
+set(MGSDK_OUTPUT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/out" CACHE PATH "所有构建/安装/打包生成物的根目录")
+
+# 只在用户没有显式传 -DCMAKE_INSTALL_PREFIX 时改默认值，避免覆盖命令行
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "${MGSDK_OUTPUT_ROOT}/install"
+        CACHE PATH "Install prefix (out/install)" FORCE)
+endif()
+message(STATUS "构建输出根目录: ${MGSDK_OUTPUT_ROOT}")
+message(STATUS "安装前缀: ${CMAKE_INSTALL_PREFIX}")
+
 # 关键：添加库的子目录，这将引导CMake去执行 子目录下的 CMakeLists.txt
 add_subdirectory(MotionGloveSDK)        
 # 只保留 Debug 和 Release 配置

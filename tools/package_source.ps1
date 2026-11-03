@@ -19,7 +19,7 @@
       preBuild\install_example\   <- out\install_example（示例 exe + 运行库，按配置分目录）
 
 .PARAMETER OutputDir
-    压缩包输出目录，默认仓库根目录。
+    压缩包输出目录，默认 out\pack（仓库根目录只留源码）。
 
 .PARAMETER Version
     覆盖版本号（默认读取版本头文件）。
@@ -57,11 +57,14 @@ if (-not $Version) {
     $Version = $parts -join '.'
 }
 
-if (-not $OutputDir) { $OutputDir = $repoRoot }
+if (-not $OutputDir) { $OutputDir = Join-Path $repoRoot 'out/pack' }
+if (-not (Test-Path -LiteralPath $OutputDir)) {
+    New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+}
 $OutputDir = (Resolve-Path -LiteralPath $OutputDir).Path
 
 $packageName = "${packageBaseName}_v$Version"
-$stageRoot = Join-Path $repoRoot 'out/package'
+$stageRoot = Join-Path $repoRoot 'out/pack/staging'
 $stageDir = Join-Path $stageRoot $packageName
 $zipPath = Join-Path $OutputDir "$packageName.zip"
 

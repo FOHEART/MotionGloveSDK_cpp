@@ -8,7 +8,7 @@ REM    tools\build_and_test.bat Release         指定配置
 REM    tools\build_and_test.bat Debug Unit.*    只跑匹配的用例（gtest 过滤）
 REM
 REM  说明：先加载 VS2022 开发环境（vcvars64），否则 cmake 找不到 MSVC。
-REM        构建目录与 CMakeSettings 生成的目录隔离，互不影响。
+REM        构建目录固定 out\build\tdd-tests，与 scripts\build.bat 的 out\build\x64-* 隔离。
 REM ============================================================================
 setlocal enabledelayedexpansion
 chcp 65001 >nul

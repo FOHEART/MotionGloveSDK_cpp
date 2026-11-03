@@ -1,0 +1,14 @@
+{
+    "git.ignoreLimitWarning": true,
+
+    // ── CMake Tools：IDE 构建树固定到 out/build/vscode ──────────────────────
+    // CLI（scripts\build.bat）用 out/build/x64-<配置>，两边各自缓存，互不抢生成器。
+    // 本工程不使用 CMakePresets.json，设置项就是唯一配置来源。
+    "cmake.useCMakePresets": "never",
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.buildDirectory": "${workspaceFolder}/out/build/vscode",
+    "cmake.installPrefix": "${workspaceFolder}/out/install",
+    "cmake.generator": "Visual Studio 17 2022",
+    "cmake.platform": "x64",
+    "cmake.configureOnOpen": false
+}

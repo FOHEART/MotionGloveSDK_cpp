@@ -43,9 +43,9 @@
 
 | 验收项 | 结果 |
 |---|---|
-| `ctest --test-dir out/build/tdd-nmake` | **100% passed, 19/19** |
+| `ctest --test-dir out/build/tdd-tests` | **100% passed, 19/19** |
 | `doxygen Doxyfile` 退出码 | **exit = 0**（WARN_AS_ERROR=YES） |
-| `doxygen_warnings.log` | **0 字节**（零告警） |
+| `out/doxygen/doxygen_warnings.log` | **0 字节**（零告警） |
 | HTML 产出 | `docs/html/index.html`（约 2.9 MB，189 个文件） |
 
 ## 5. 注意事项（踩坑记录）
