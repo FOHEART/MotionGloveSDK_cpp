@@ -243,7 +243,8 @@ jobs:
           chcp >>diag.txt
           git ls-files --eol scripts/deploy.bat >>diag.txt 2>&1
           powershell -NoProfile -Command "$b=[IO.File]::ReadAllBytes('scripts\deploy.bat'); Add-Content diag.txt ('bytes0-50=' + (($b[0..50]) -join ','))"
-          rem 子进程输出也收进 diag.txt，供 job summary 展示
+          rem keep this step pure ASCII: a child chcp switches the shared console
+          rem codepage and would corrupt re-reading of a multibyte step file
           cmd /c scripts\deploy.bat NoSuchConfig >>diag.txt 2>&1
           >>diag.txt echo DIAG deploy_rc=%ERRORLEVEL%
           if not errorlevel 1 (
@@ -294,4 +295,5 @@ jobs:
             cat diag.txt 2>/dev/null || echo "(no diag.txt)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          cat diag.txt 2>/dev/null || true
 
