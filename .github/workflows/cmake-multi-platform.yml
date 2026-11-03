@@ -239,12 +239,15 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          echo DIAG cwd=%CD%
-          rem 用 cmd /c 隔离子进程：脚本内部的 chcp 不会影响本 step 的解析位置
-          cmd /c scripts\deploy.bat NoSuchConfig
-          echo DIAG errorlevel=%ERRORLEVEL%
+          >>diag.txt echo DIAG cwd=%CD%
+          chcp >>diag.txt
+          git ls-files --eol scripts/deploy.bat >>diag.txt 2>&1
+          powershell -NoProfile -Command "$b=[IO.File]::ReadAllBytes('scripts\deploy.bat'); Add-Content diag.txt ('bytes0-50=' + (($b[0..50]) -join ','))"
+          rem 子进程输出也收进 diag.txt，供 job summary 展示
+          cmd /c scripts\deploy.bat NoSuchConfig >>diag.txt 2>&1
+          >>diag.txt echo DIAG deploy_rc=%ERRORLEVEL%
           if not errorlevel 1 (
-              echo ::error::deploy.bat exited %ERRORLEVEL%, expected 1+
+              >>diag.txt echo DIAG guard-fired
               exit /b 1
           )
           echo [OK] deploy error branch returned 1
@@ -280,4 +283,15 @@ jobs:
           if errorlevel 1 exit /b 1
           dir /b out\pack\*.zip
           echo [OK] package created
+
+      - name: Publish diagnostics to job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Windows scripts job diagnostics"
+            echo '```text'
+            cat diag.txt 2>/dev/null || echo "(no diag.txt)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
