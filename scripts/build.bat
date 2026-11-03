@@ -62,7 +62,7 @@ if /i "%CONFIG%"=="all" (
     if errorlevel 1 goto :build_failed
 )
 
-echo [3/3] 完成：out\build\x64-<配置> / out\install\x64-<配置> / out\install_example\x64-<配置>
+echo [3/3] 完成：out\build\x64-配置 / out\install\x64-配置 / out\install_example\x64-配置
 exit /b 0
 
 REM ── 配置 + 编译 + 安装 + 汇总指定配置 ─────────────────────────────────────
