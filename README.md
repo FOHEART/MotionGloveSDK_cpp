@@ -38,12 +38,14 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 │       ├── motionGloveSDK_example5.cpp
 │       └── motionGloveSDK_example_vtk.cpp   # VTK 示例（默认编译，-DBUILD_VTK_EXAMPLE=OFF 关闭）
 │
-├── scripts/                           # 一键脚本入口（只认 out/ 下的路径）
+├── scripts/                           # 一键脚本入口（只认 out/ 下的路径，cmd / sh 双解释器）
 │   ├── build.bat                      # 配置 + 编译 + 安装 + 汇总示例
 │   ├── test.bat                       # ctest（构建树 out/build/tdd-tests）
 │   ├── deploy.bat                     # 安装到 out/install + 汇总到 out/install_example
-│   ├── package.bat                    # 源码分发包 → out/pack
-│   └── gen_docs.bat                   # Doxygen HTML，告警日志 → out/doxygen
+│   ├── package.bat                    # 源码分发包 → out/pack（Linux 需 pwsh）
+│   ├── gen_docs.bat                   # Doxygen HTML，告警日志 → out/doxygen
+│   ├── git_pull_latest.bat            # 拉取最新代码（Win 双击 / Linux sh）
+│   └── open_in_vscode.bat             # 用 VSCode 打开工程（Win 双击 / Linux sh）
 │
 ├── tools/                             # VTK 安装、打包、测试辅助脚本
 │
@@ -61,11 +63,7 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 │
 ├── [Windows]build_vs2022.bat          # 兼容入口 → scripts/build.bat 2022
 ├── [Windows]build_vs2026.bat          # 兼容入口 → scripts/build.bat 2026
-├── [Windows]git_pull_latest.cmd       # 拉取最新代码
-├── [Windows]open_in_vscode.bat        # 用 VSCode 打开工程
-├── [Linux]build.sh                    # 一键构建脚本（Linux/Ubuntu）
-├── [Linux]git_pull_latest.sh          # 拉取最新代码
-└── [Linux]open_in_vscode.sh           # 用 VSCode 打开工程
+└── [Linux]build.sh                    # 兼容入口 → scripts/build.bat
 ```
 
 ---
@@ -84,9 +82,17 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 | `scripts\deploy.bat` | 只做安装 + 示例汇总（`out\install`、`out\install_example`） |
 | `scripts\package.bat` | 打源码分发包（`out\pack`） |
 | `scripts\gen_docs.bat` | 生成 Doxygen HTML，告警日志写 `out\doxygen` |
+| `scripts\git_pull_latest.bat` | 拉取最新代码：Windows 双击 / `cmd`，Linux 用 `sh` 运行同一文件；执行完立即退出、不等待按键 |
+| `scripts\open_in_vscode.bat` | 用 VSCode 打开工程：同样是 Windows / Linux 通用的一份文件 |
 
 根目录的 `[Windows]build_vs2022.bat` / `[Windows]build_vs2026.bat` 是双击用的兼容入口，
 内部调用 `scripts\build.bat`。
+
+`scripts/` 下的脚本（`.bat` 与 `.cmd` 由 cmd 用同一解释器执行，这里统一用 `.bat`）全部是
+cmd + POSIX sh 双解释器：cmd 把首行当标签忽略后执行批处理段，`sh` 则由首行 `exec` 取出
+`#__SH__` 标记之后的 POSIX 段、去掉 CR 后重新执行。Windows 直接双击或从 `cmd` 运行；
+Linux 用 `sh scripts/build.bat`、`sh scripts/test.bat` 这样调用（`[Linux]build.sh` 只是前者的兼容入口）。
+打包脚本在 Linux 下复用同一份 PowerShell 实现，需要先安装 PowerShell 7（`pwsh`）。
 
 **Windows（Visual Studio 2022）**
 
@@ -103,8 +109,13 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 **Linux / Ubuntu**
 
 ```bash
-bash "[Linux]build.sh"
+bash "[Linux]build.sh"          # 兼容入口
+sh scripts/build.bat            # 等价写法：Debug + Release
+sh scripts/build.bat Release    # 只构建 Release
 ```
+
+Linux 下产物同样是 `out/build/x64-*`、`out/install/x64-*`、`out/install_example/x64-*`，
+示例目录里的共享库是 `.so`，运行前按需 `export LD_LIBRARY_PATH="$PWD"`。
 
 ---
 
@@ -315,6 +326,19 @@ out/install_example/
 
 ---
 
+## CI（GitHub Actions）
+
+推送 / PR 到 `main` 会触发 [.github/workflows/cmake-multi-platform.yml](./.github/workflows/cmake-multi-platform.yml)，共三组 job：
+
+| Job | 覆盖内容 |
+| --- | --- |
+| `build (ubuntu / windows)` | 裸 `cmake` 配置 + 编译 + `ctest`，验证工程本身在双平台可构建、测试通过 |
+| `vtk-example (ubuntu / windows)` | VTK 3D 示例的编译与真实开窗运行（Linux 走 Xvfb + Mesa 软渲染） |
+| `scripts dual-platform (ubuntu / windows)` | **真执行 `scripts/` 一键脚本**：Linux 走 sh 分支端到端（build → test → package → 产物断言），并断言"只传 Release 时不许出现 x64-Debug 构建树"（防参数被 CR 污染后静默回落默认值）；Windows 走 cmd 错误分支 + Git Bash 下的 sh 分支（验证 CRLF 兼容）+ 打包 |
+
+`scripts dual-platform` 是脚本层 与 工程层 的双重保险：裸 cmake job 挂了说明工程/依赖问题，
+只有它挂了才说明"一键脚本"在某个平台退化。推送 `v*` 标签另见下面的发布流程。
+
 ## 发布（打 tag 即发布 Release）
 
 版本号唯一定义在 [MotionGloveSDK_examples/inc/motionGloveSDK_version.h](./MotionGloveSDK_examples/inc/motionGloveSDK_version.h)
@@ -374,7 +398,7 @@ MotionGloveSDK_cpp_v<版本号>/
 | 类别 | 内容 |
 | --- | --- |
 | 版本控制 | `.git/`（客户拿不到仓库地址与历史，无法 pull 你的代码）、`.gitignore` |
-| git 操作脚本 | `[Windows]git_pull_latest.cmd`、`[Linux]git_pull_latest.sh`，以及 README 里对应的说明 |
+| git 操作脚本 | `scripts\git_pull_latest.bat`（cmd / sh 双解释器），以及 README 里对应的说明 |
 | 内部资料 | `.github/`（CI 与 agent 配置）、`openspec/`、`docs/superpowers/`、`.vscode/` |
 | 构建产物 | `out/`（`out/build`、`out/pack/staging` 暂存目录等；`out/install`、`out/install_example` 只以 `preBuild/` 形式进包）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log`；历史遗留的根目录 `build/` 若存在也一并剔除 |
 | 本机专用 | `tools/autotools_env.bat`、打包脚本自身 |

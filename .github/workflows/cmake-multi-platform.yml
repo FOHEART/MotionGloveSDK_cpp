@@ -171,3 +171,107 @@ jobs:
           fi
           echo "VTK 示例已在 Xvfb 中正常启动并持续运行。"
 
+  # ── scripts/ 一键脚本双系统自动测试 ──────────────────────────────────────────
+  # scripts/ 下都是 cmd + POSIX sh 双解释器脚本（CRLF 检出也能跑）。这里真执行它们：
+  #   * Linux  ：sh 分支端到端（build → test → package）+ 缺配置错误分支 + 产物断言；
+  #     额外断言"传了 Release 就不许出现 x64-Debug 构建树"，防止首行 exec 的参数被
+  #     CRLF 的 CR 污染后静默回落到默认值；
+  #   * Windows：cmd 分支错误路径 + Git Bash 下的 sh 分支（验证 CRLF 兼容）+ 打包。
+  # 与上面的裸 cmake 矩阵互补：那个验证工程本身，这个验证"一键脚本"在两端都可用。
+  scripts-dual:
+    name: scripts dual-platform (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # ---- Linux：sh 分支端到端 -------------------------------------------------
+      - name: Build via scripts (Linux, sh branch)
+        if: runner.os == 'Linux'
+        run: sh scripts/build.bat Release
+
+      - name: Arg parsing sanity - Release only (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          test -f out/install/x64-Release/lib/libMotionGloveSDK.so \
+            || { echo "::error::Release 安装产物缺失"; exit 1; }
+          if [ -d out/build/x64-Debug ]; then
+            echo "::error::只传了 Release 却出现 x64-Debug 构建树——参数解析被 CR 污染，回落到了默认值"
+            exit 1
+          fi
+          echo "[OK] 参数解析正常：只构建了 Release"
+
+      - name: Unit tests via scripts (Linux)
+        if: runner.os == 'Linux'
+        run: sh scripts/test.bat Release
+
+      - name: Package via scripts (Linux, pwsh)
+        if: runner.os == 'Linux'
+        run: |
+          sh scripts/package.bat
+          ls -l out/pack/*.zip
+
+      - name: Error branch - deploy with unknown config (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if sh scripts/deploy.bat NoSuchConfig; then
+            echo "::error::deploy.bat 对不存在的配置应返回非 0"
+            exit 1
+          fi
+          echo "[OK] deploy 错误分支返回非 0"
+
+      - name: Artifacts exist (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          test -f out/install/x64-Release/lib/libMotionGloveSDK.so
+          test -f out/install/x64-Release/include/motionGloveSDK.h
+          test -f out/install_example/x64-Release/motionGloveSDK_example1
+          echo "[OK] out/install 与 out/install_example 产物齐全"
+
+      # ---- Windows：cmd 分支 + Git Bash 下的 sh 分支 -----------------------------
+      - name: Error branch via cmd (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call scripts\deploy.bat NoSuchConfig
+          if not errorlevel 1 exit /b 1
+          echo [OK] deploy 错误分支返回 1
+
+      - name: sh branch under Git Bash, CRLF workspace (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          if bash scripts/deploy.bat NoSuchConfig; then
+            echo "::error::Git Bash 下 deploy.bat 错误分支应返回非 0"
+            exit 1
+          fi
+          echo "[OK] Git Bash（CRLF 检出）下 sh 分支可用且退出码正确"
+
+      - name: Error branch - open_in_vscode without code (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          where code >nul 2>nul
+          if errorlevel 1 (
+              call scripts\open_in_vscode.bat
+              if not errorlevel 1 exit /b 1
+              echo [OK] open_in_vscode 缺 code 分支返回 1
+          ) else (
+              echo [SKIP] runner 自带 code，跳过缺依赖分支
+          )
+
+      - name: Package via scripts (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call scripts\package.bat
+          if errorlevel 1 exit /b 1
+          dir /b out\pack\*.zip
+          echo [OK] 打包成功
+

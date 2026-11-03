@@ -6,7 +6,7 @@
     产出的压缩包只包含“能编译 + 能看文档”的内容，剥离内部资料与版本控制信息：
       * 不包含 .git —— 客户无法从包里取到仓库地址、历史与远端配置；
       * 不包含 .github（CI 流程与内部 agent 配置）、openspec、docs/superpowers 等内部资料；
-      * 不包含 git 操作脚本（[Windows]git_pull_latest.cmd / [Linux]git_pull_latest.sh），
+      * 不包含 git 操作脚本（scripts\git_pull_latest.bat），
         客户无法通过脚本拉取你的代码；
       * 不包含构建缓存（out 下的 build/package 等）、third_party、docs/html、*.zip、*.log。
 
@@ -127,8 +127,8 @@ Write-Host '[3/5] 清理 README 中仅面向内部的说明'
 $readmePath = Join-Path $stageDir 'README.md'
 if (Test-Path -LiteralPath $readmePath) {
     $readmeLines = @(Get-Content -LiteralPath $readmePath -Encoding UTF8)
-    # 1) 去掉列在目录树里的 git 拉取脚本
-    $keptLines = @($readmeLines | Where-Object { $_ -notmatch 'git_pull_latest' })
+    # 1) 去掉列在目录树/入口表里的 git 拉取脚本与打包说明（客户包不带这些能力）
+    $keptLines = @($readmeLines | Where-Object { $_ -notmatch 'git_pull_latest|源码分发包' })
 
     # 2) 去掉仅面向内部的整节（发布流程 / 给客户打包的说明）
     $internalSections = @('^##\s*发布', '^##\s*源码分发包')
