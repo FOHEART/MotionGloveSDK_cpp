@@ -72,12 +72,14 @@ $zipPath = Join-Path $OutputDir "$packageName.zip"
 $excludeDirs = @(
     '.git', '.github', '.vs', '.vscode',
     'openspec', 'superpowers', '.superpowers', '.workbuddy',
-    'out', 'build', 'third_party', (Join-Path $repoRoot 'docs/html')
+    'out', 'build', 'third_party', '__pycache__', '.pytest_cache',
+    (Join-Path $repoRoot 'docs/html')
 )
 $excludeFiles = @(
     '.gitignore', '.gitattributes',
     '*git_pull_latest*', 'autotools_env.bat', '*package_source*',
-    'doxygen_warnings.log', '*.log', '*.zip', '*.7z', '*.user', 'Thumbs.db', '.DS_Store'
+    'doxygen_warnings.log', '*.log', '*.zip', '*.7z', '*.user', 'Thumbs.db', '.DS_Store',
+    '*.pyc', '*.pyo'
 )
 
 Write-Host "[1/5] 准备暂存目录：$stageDir"

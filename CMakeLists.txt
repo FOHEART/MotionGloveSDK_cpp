@@ -199,6 +199,14 @@ source_group(TREE "${CMAKE_SOURCE_DIR}" FILES     ${SRC_FILES}    )
 endif()
 
 
+# ── 无头命令行（CLI-Anything）────────────────────────────────────────────────
+# 独立薄 exe：只解析参数 + 调 SDK + 输出统一 JSON 信封，不依赖 GUI/窗口环境。
+# 不想编译时传 -DBUILD_CLI=OFF。
+option(BUILD_CLI "Build motionGloveSDK_cli (headless CLI, no GUI)" ON)
+if(BUILD_CLI)
+    add_subdirectory(cli)
+endif()
+
 # ── 单元测试（GoogleTest / TDD）─────────────────────────────────────────────
 # 测试目录自带 GoogleTest 接入（FetchContent），只测算纯逻辑层
 # （eulerToQuat / decodeAsGloveCSV / readWriteLock），不依赖 UDP 与窗口环境。

@@ -47,6 +47,15 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 │   ├── git_pull_latest.bat            # 拉取最新代码（Win 双击 / Linux sh）
 │   └── open_in_vscode.bat             # 用 VSCode 打开工程（Win 双击 / Linux sh）
 │
+├── cli/                               # 无头 CLI 子工程（motionGloveSDK_cli，无 GUI 依赖）
+│   ├── main.cpp                       # 命令分发 + REPL（--json 统一信封）
+│   ├── cli_parser.*                   # 参数解析 / JSON 序列化 / stdout 分流
+│   ├── session.*                      # 会话默认值（端口 / 数据流名）
+│   └── commands/                      # run / export / status / config
+│
+├── agent-harness/                     # CLI-Anything Python harness（pip install -e）
+├── SKILL.md                           # CLI Skill 文档（唯一来源，随部署一起同步）
+│
 ├── tools/                             # VTK 安装、打包、测试辅助脚本
 │
 ├── out/                               # 全部生成物（git 忽略）
@@ -323,6 +332,31 @@ out/install_example/
 ```
 
 这两个目录都是自带运行库的“开箱即用”副本，解压/拷贝到别处也能直接运行示例。
+
+---
+
+## 无头 CLI（motionGloveSDK_cli）
+
+`cli/` 子工程编译出控制台程序 `motionGloveSDK_cli`（不依赖窗口/图形环境），默认随构建一起编译
+（`-DBUILD_CLI=OFF` 可关闭）：
+
+```console
+motionGloveSDK_cli status
+motionGloveSDK_cli run --frames 2 --timeout-ms 3000 --joint LeftHand
+motionGloveSDK_cli export --frames 60 --timeout-ms 5000 --output out/cap.csv
+```
+
+- 全部命令支持 `--json`，stdout 只输出一行统一信封 `{"ok","code","message","data"}`；
+  SDK 诊断日志改道 stderr，进程退出码只区分 0/1（细分错误码在信封 `code` 里）。
+- 命令：`status` / `config show|set|clear` / `run`（别名 `listen`/`capture`）/ `export` / `version` / `help`；
+  无参数启动进入 REPL（`exit`/`help`/`json on|off`，兼容带 BOM 的管道输入）。
+- 会话默认值存 `%TEMP%\motionglove-cli\session.json`，优先级：命令行 > 会话 > 内置默认（5001 / Glove1）。
+- `scripts\deploy.bat` 会把 `motionGloveSDK_cli.exe`、`SKILL.md` 与 `agent-harness\` 一起汇总到
+  `out\install_example\x64-<配置>\`；harness 靠相对位置自动定位同级 exe。
+- 无硬件验证：`python tools\mock_glove_sender.py --port 5001` 造帧，再用 `run`/`export` 收帧。
+- harness 测试：`pip install -e agent-harness` 后 `pytest agent-harness`（没有构建产物时 e2e 自动 skip）。
+
+完整命令表、`data` schema、错误码对照与示例见根目录 [SKILL.md](./SKILL.md)。
 
 ---
 

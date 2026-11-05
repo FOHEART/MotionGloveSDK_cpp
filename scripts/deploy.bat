@@ -63,7 +63,11 @@ set "EXE_COUNT=0"
 set "DLL_COUNT=0"
 for %%F in ("%EXAMPLES%\*.exe") do set /a EXE_COUNT+=1
 for %%F in ("%EXAMPLES%\*.dll") do set /a DLL_COUNT+=1
-echo      %EXAMPLES%：!EXE_COUNT! 个示例，!DLL_COUNT! 个 DLL
+echo      %EXAMPLES%：!EXE_COUNT! 个可执行文件，!DLL_COUNT! 个 DLL
+
+REM CLI-Anything：把 agent-harness + SKILL.md 同步到可运行目录（失败只告警）
+call "%~dp0sync_agent_harness.bat" "%EXAMPLES%"
+if errorlevel 1 echo [WARN] agent harness 同步失败，CLI 仍可单独使用。
 exit /b 0
 
 #__SH__
@@ -104,7 +108,7 @@ BIN="$BDIR/$CONFIG"
 [ -d "$BIN" ] || BIN="$BDIR"
 
 count=0
-for f in "$BIN"/motionGloveSDK_example*; do
+for f in "$BIN"/motionGloveSDK_example* "$BIN"/motionGloveSDK_cli*; do
     [ -f "$f" ] || continue
     cp "$f" "$EXAMPLES/" || exit 1
     count=$((count + 1))
@@ -122,5 +126,9 @@ for f in "$INSTALL"/lib/*.so "$INSTALL"/lib/*.so.*; do
     [ -f "$f" ] && cp "$f" "$EXAMPLES/" 2>/dev/null
 done
 
-echo "     $EXAMPLES：$count 个示例，$(find "$EXAMPLES" -name '*.so*' | wc -l | tr -d ' ') 个共享库"
+echo "     $EXAMPLES：$count 个可执行文件，$(find "$EXAMPLES" -name '*.so*' | wc -l | tr -d ' ') 个共享库"
 echo "     运行前可执行：export LD_LIBRARY_PATH=\"\$PWD\""
+
+# CLI-Anything：同步 agent-harness + SKILL.md（失败只告警）
+sh "$(dirname "$0")/sync_agent_harness.bat" "$EXAMPLES" \
+    || echo "[WARN] agent harness 同步失败，CLI 仍可单独使用。"

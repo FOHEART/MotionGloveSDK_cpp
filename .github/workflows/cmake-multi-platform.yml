@@ -72,6 +72,13 @@ jobs:
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest --build-config ${{ matrix.build_type }}
 
+    - name: Test CLI harness (mock unit + real e2e)
+      # harness 会自动在 out/build 下定位刚构建的 motionGloveSDK_cli；
+      # e2e 用 tools/mock_glove_sender.py 造帧，不需要真实手套。
+      run: |
+        python -m pip install --disable-pip-version-check pytest click
+        python -m pytest agent-harness -q
+
   # ── 可选 VTK 3D 可视化示例：编译 + 启动测试 ────────────────────────────────
   # 该示例依赖 VTK 9.x，单独成一个 job，不影响上面的主构建矩阵：
   #   * Windows：用 tools/setup_vtk.bat 自动安装 conda-forge 预编译 VTK，编译 + 启动自检；
