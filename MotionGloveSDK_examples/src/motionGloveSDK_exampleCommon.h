@@ -23,7 +23,7 @@
  */
 inline void PrintGloveExampleVersion(const char* exampleName)
 {
-    printf("%s v%s\n", exampleName, MOTIONGLOVE_EXAMPLE_VERSION_STRING);
+    printf("%s v%s\n", exampleName, MOTIONGLOVE_SDK_VER_STRING);
 }
 
 /**

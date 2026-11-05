@@ -50,7 +50,7 @@ UDP 收包线程 (motionGloveSDK.cpp: ThreadProc)
 - **示例自动生成目标**：`MotionGloveSDK_examples/src/*example*.cpp` 由 `file(GLOB)` 每个文件一个可执行目标（名字取文件主干）；
   新增示例只要按此命名落盘即可。`*_vtk.cpp` 受 `BUILD_VTK_EXAMPLE` 控制。POST_BUILD 会把 `MotionGloveSDK.dll` 与 VTK 运行库
   复制到 exe 同目录（`cmake/copy_runtime_dlls.cmake`）。
-- **版本号唯一来源**：`MotionGloveSDK_examples/inc/motionGloveSDK_version.h`。顶层 `CMakeLists.txt` 解析它设置工程版本，
+- **版本号唯一来源**：`MotionGloveSDK/include/motionGloveSDK_version.h`（`MOTIONGLOVE_SDK_VER_MAJOR/MINOR/PATCH`）。顶层 `CMakeLists.txt` 解析它设置工程版本，
   示例启动时打印，`.github/workflows/release.yml` 校验 `vX.Y.Z` 标签与它一致——改版本只改这一个文件。
 
 协议与设计依据（改动前先读）：`MotionGloveSDK/include/MOTIONGLOVE_SDK_STREAM_FORMAT_2026-11-02.md`（数据流格式权威文档）、

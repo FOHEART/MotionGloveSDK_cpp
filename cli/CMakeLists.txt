@@ -34,7 +34,6 @@ add_executable(${MGSDK_CLI_NAME}
 target_include_directories(${MGSDK_CLI_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${MotionGloveSDK_ROOT}/include"
-    "${PROJECT_SOURCE_DIR}/MotionGloveSDK_examples/inc"
 )
 
 target_compile_definitions(${MGSDK_CLI_NAME} PRIVATE UNICODE _UNICODE)

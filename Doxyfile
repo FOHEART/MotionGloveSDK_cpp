@@ -15,7 +15,7 @@ INPUT_ENCODING         = UTF-8
 # 注：tests 只收 tests/unit（测试代码），不收 tests/README.md——
 #     INPUT 递归含子目录 README.md 时，其一级标题会与 USE_MDFILE_AS_MAINPAGE
 #     冲突（found more than one \mainpage，WARN_AS_ERROR 下直接失败）。
-INPUT                  = MotionGloveSDK MotionGloveSDK_examples/src MotionGloveSDK_examples/inc tests/unit docs README.md
+INPUT                  = MotionGloveSDK MotionGloveSDK_examples/src tests/unit docs README.md
 FILE_PATTERNS          = *.h *.hpp *.c *.cpp *.cc *.dox *.md
 RECURSIVE              = YES
 EXCLUDE                = out build third_party docs/superpowers MotionGloveSDK/include/MOTIONGLOVE_SDK_STREAM_FORMAT_2026-11-02.md

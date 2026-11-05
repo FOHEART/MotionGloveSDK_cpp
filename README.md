@@ -13,6 +13,7 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 │   ├── CMakeLists.txt                 # 编译为共享库 (DLL/SO)
 │   ├── include/                       # 公开头文件
 │   │   ├── motionGloveSDK.h
+│   │   ├── motionGloveSDK_version.h   # 发布版本唯一来源（MOTIONGLOVE_SDK_VER_*）
 │   │   ├── motionGloveSDK_commonDef.h
 │   │   ├── motionGloveSDK_HMAXGloveDef.h
 │   │   └── motionGloveSDKDef.h
@@ -22,6 +23,8 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 │   │   ├── motionGloveSdkHelper.h
 │   │   ├── readWriteLock.h
 │   │   └── resource.h
+│   ├── res/
+│   │   └── motionGloveSDK.rc          # Windows 版本资源：DLL 属性里的版本号
 │   └── src/                           # 库源文件
 │       ├── decodeAsGloveCSV.cpp
 │       ├── eulerToQuat.cpp
@@ -375,9 +378,13 @@ motionGloveSDK_cli export --frames 60 --timeout-ms 5000 --output out/cap.csv
 
 ## 发布（打 tag 即发布 Release）
 
-版本号唯一定义在 [MotionGloveSDK_examples/inc/motionGloveSDK_version.h](./MotionGloveSDK_examples/inc/motionGloveSDK_version.h)
-的 `MOTIONGLOVE_EXAMPLE_VERSION_MAJOR/MINOR/PATCH`，CMake 用它设置工程版本，示例启动时也会打印
+版本号唯一定义在 [MotionGloveSDK/include/motionGloveSDK_version.h](./MotionGloveSDK/include/motionGloveSDK_version.h)
+的 `MOTIONGLOVE_SDK_VER_MAJOR/MINOR/PATCH`，CMake 用它设置工程版本，示例/CLI 启动时也会打印
 （如 `motionGloveSDK_example1 v0.2.1`）。
+
+Windows 下 `MotionGloveSDK.dll` 的「属性 → 详细信息」也显示同一版本号：版本资源由
+`MotionGloveSDK/res/motionGloveSDK.rc` 在编译时从该头文件生成，Debug 构建还会带上
+`VS_FF_DEBUG` 标志。
 
 发版步骤：
 
@@ -403,7 +410,7 @@ git push origin main v0.2.2
 
 `scripts\package.bat`（逻辑在 [tools/package_source.ps1](./tools/package_source.ps1)）把当前
 工作区打成 `out/pack/MotionGloveSDK_cpp_v<版本号>.zip`，版本号取自
-[motionGloveSDK_version.h](./MotionGloveSDK_examples/inc/motionGloveSDK_version.h)，
+[motionGloveSDK_version.h](./MotionGloveSDK/include/motionGloveSDK_version.h)，
 也可命令行指定：`scripts\package.bat 0.2.2`。
 
 压缩包内有一层顶层目录 `MotionGloveSDK_cpp_v<版本号>`，解压后可直接用

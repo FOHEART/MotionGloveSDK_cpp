@@ -29,6 +29,7 @@ src/eulerToQuat.cpp
 # 头文件
 set(HEADER_FILES
 "include/motionGloveSDK.h"
+"include/motionGloveSDK_version.h"
 "include/motionGloveSDK_commonDef.h"
 "include/motionGloveSDK_skeleton32Def.h"
 "include/motionGloveSDK_skeleton42Def.h"
@@ -47,6 +48,11 @@ add_library(${MGSDK_PROJECT_NAME} SHARED
     ${SRC_FILES}
     ${HEADER_FILES}
 )
+
+# Windows 版本资源：DLL「属性 -> 详细信息」里的版本号，取自 motionGloveSDK_version.h
+if(WIN32)
+    target_sources(${MGSDK_PROJECT_NAME} PRIVATE res/motionGloveSDK.rc)
+endif()
 # 指定头文件目录，以便编译器能够找到
 target_include_directories(${MGSDK_PROJECT_NAME} PUBLIC  ${PROJECT_SOURCE_DIR})
 

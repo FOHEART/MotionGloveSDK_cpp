@@ -15,7 +15,7 @@ unsigned int sdkVersionRaw();
 /** @brief SDK 版本字符串，形如 "0.0.9"。 */
 std::string sdkVersionString();
 
-/** @brief CLI 版本字符串，取自 motionGloveSDK_version.h，形如 "0.2.1"。 */
+/** @brief 发布版本字符串，取自 MotionGloveSDK/include/motionGloveSDK_version.h，形如 "0.2.1"。 */
 std::string cliVersionString();
 
 } // namespace mgcli

@@ -1,21 +1,21 @@
 ﻿# 设置CMake最低版本要求
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
-# 示例发布版本号以 MotionGloveSDK_examples/inc/motionGloveSDK_version.h 为唯一来源，
+# 发布版本号以 MotionGloveSDK/include/motionGloveSDK_version.h 为唯一来源，
 # 发布工作流会校验它与 tag 一致。
-set(MGSDK_EXAMPLE_VERSION_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/MotionGloveSDK_examples/inc/motionGloveSDK_version.h")
-file(READ "${MGSDK_EXAMPLE_VERSION_HEADER}" MGSDK_EXAMPLE_VERSION_CONTENT)
+set(MGSDK_VERSION_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/MotionGloveSDK/include/motionGloveSDK_version.h")
+file(READ "${MGSDK_VERSION_HEADER}" MGSDK_VERSION_CONTENT)
 foreach(_part MAJOR MINOR PATCH)
-    if(NOT MGSDK_EXAMPLE_VERSION_CONTENT MATCHES "#define[ \t]+MOTIONGLOVE_EXAMPLE_VERSION_${_part}[ \t]+([0-9]+)")
-        message(FATAL_ERROR "无法从 ${MGSDK_EXAMPLE_VERSION_HEADER} 解析 MOTIONGLOVE_EXAMPLE_VERSION_${_part}")
+    if(NOT MGSDK_VERSION_CONTENT MATCHES "#define[ \t]+MOTIONGLOVE_SDK_VER_${_part}[ \t]+([0-9]+)")
+        message(FATAL_ERROR "无法从 ${MGSDK_VERSION_HEADER} 解析 MOTIONGLOVE_SDK_VER_${_part}")
     endif()
-    set(MGSDK_EXAMPLE_VERSION_${_part} "${CMAKE_MATCH_1}")
+    set(MGSDK_VERSION_${_part} "${CMAKE_MATCH_1}")
 endforeach()
-set(MGSDK_EXAMPLE_VERSION "${MGSDK_EXAMPLE_VERSION_MAJOR}.${MGSDK_EXAMPLE_VERSION_MINOR}.${MGSDK_EXAMPLE_VERSION_PATCH}")
+set(MGSDK_VERSION "${MGSDK_VERSION_MAJOR}.${MGSDK_VERSION_MINOR}.${MGSDK_VERSION_PATCH}")
 
 # 设置项目名称
-project(MotionGloveSDK_examples VERSION ${MGSDK_EXAMPLE_VERSION} LANGUAGES C CXX)
-message(STATUS "MotionGloveSDK_example 版本: ${MGSDK_EXAMPLE_VERSION}")
+project(MotionGloveSDK_examples VERSION ${MGSDK_VERSION} LANGUAGES C CXX)
+message(STATUS "MotionGloveSDK 发布版本: ${MGSDK_VERSION}")
 
 # ── 输出目录约定：所有生成物进 out/，源码树只放源码 ────────────────────────
 #   out/build/x64-<配置>   CLI 构建树（scripts\build.bat）
@@ -86,9 +86,6 @@ if("${MotionGloveSDK_ROOT}" STREQUAL "")
 endif()
 message(STATUS "MotionGloveSDK库根目录: ${MotionGloveSDK_ROOT}")
 
-# 示例公共头目录（motionGloveSDK_version.h 等）
-set(MGSDK_EXAMPLE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/MotionGloveSDK_examples/inc")
-
 # 遍历找到的每个源文件
 foreach(source_file IN LISTS MAIN_SOURCES)
    
@@ -124,7 +121,7 @@ foreach(source_file IN LISTS MAIN_SOURCES)
 
     # 引入MotionGloveSDK库
     target_link_libraries(${executable_name} PRIVATE MotionGloveSDK)
-    target_include_directories(${executable_name} PRIVATE "${MotionGloveSDK_ROOT}/include" "${MGSDK_EXAMPLE_INCLUDE_DIR}")
+    target_include_directories(${executable_name} PRIVATE "${MotionGloveSDK_ROOT}/include")
 
     # VTK 示例额外链接 VTK 模块；autoinit 宏负责把工厂/渲染模块接起来
     if(_needs_vtk)

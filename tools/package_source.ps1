@@ -11,7 +11,7 @@
       * 不包含构建缓存（out 下的 build/package 等）、third_party、docs/html、*.zip、*.log。
 
     压缩包内有一层顶层目录 MotionGloveSDK_cpp_v<版本号>，解压后不会散落在当前目录。
-    版本号取自 MotionGloveSDK_examples/inc/motionGloveSDK_version.h。
+    版本号取自 MotionGloveSDK/include/motionGloveSDK_version.h。
 
     若已执行过一键构建脚本，还会把预编译产物一并放进包内的 preBuild 目录，
     客户解压即得可直接运行的示例，无需自己再调 VTK / 工具链：
@@ -46,11 +46,11 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $packageBaseName = 'MotionGloveSDK_cpp'
 
 if (-not $Version) {
-    $versionHeader = Join-Path $repoRoot 'MotionGloveSDK_examples/inc/motionGloveSDK_version.h'
+    $versionHeader = Join-Path $repoRoot 'MotionGloveSDK/include/motionGloveSDK_version.h'
     $text = Get-Content -LiteralPath $versionHeader -Raw
     $parts = foreach ($part in 'MAJOR', 'MINOR', 'PATCH') {
-        if ($text -notmatch "#define\s+MOTIONGLOVE_EXAMPLE_VERSION_$part\s+(\d+)") {
-            throw "无法从 $versionHeader 解析 MOTIONGLOVE_EXAMPLE_VERSION_$part"
+        if ($text -notmatch "#define\s+MOTIONGLOVE_SDK_VER_$part\s+(\d+)") {
+            throw "无法从 $versionHeader 解析 MOTIONGLOVE_SDK_VER_$part"
         }
         $Matches[1]
     }

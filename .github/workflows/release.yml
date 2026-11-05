@@ -1,7 +1,7 @@
 # 推送 vX.Y.Z 标签即触发：构建 Windows Release，打包 out/build/x64-Release/Release
 # 为 MotionGloveSDK_example_vX.Y.Z.zip 并发布 GitHub Release。
 #
-# 版本号唯一来源是 MotionGloveSDK_examples/inc/motionGloveSDK_version.h，
+# 版本号唯一来源是 MotionGloveSDK/include/motionGloveSDK_version.h，
 # 标签与头文件不一致时流水线直接失败，避免产物名与二进制内的版本对不上。
 name: Release
 
@@ -32,11 +32,11 @@ jobs:
           }
           $tagVersion = $Matches[1]
 
-          $header = 'MotionGloveSDK_examples/inc/motionGloveSDK_version.h'
+          $header = 'MotionGloveSDK/include/motionGloveSDK_version.h'
           $text = Get-Content -LiteralPath $header -Raw
           $parts = foreach ($part in 'MAJOR', 'MINOR', 'PATCH') {
-            if ($text -notmatch "#define\s+MOTIONGLOVE_EXAMPLE_VERSION_$part\s+(\d+)") {
-              throw "无法从 $header 解析 MOTIONGLOVE_EXAMPLE_VERSION_$part"
+            if ($text -notmatch "#define\s+MOTIONGLOVE_SDK_VER_$part\s+(\d+)") {
+              throw "无法从 $header 解析 MOTIONGLOVE_SDK_VER_$part"
             }
             $Matches[1]
           }

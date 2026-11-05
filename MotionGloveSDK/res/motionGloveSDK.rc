@@ -1,0 +1,45 @@
+// ── MotionGloveSDK.dll 的版本资源 ───────────────────────────────────────────
+// 让 Windows「属性 -> 详细信息」里直接看到版本号。
+// 版本号唯一来源是 MotionGloveSDK/include/motionGloveSDK_version.h
+// （MOTIONGLOVE_SDK_VER_MAJOR / MINOR / PATCH），改版本只改那一个文件。
+
+#include <windows.h>
+
+#include "../include/motionGloveSDK_version.h"
+
+#ifndef MOTIONGLOVE_SDK_VER_STRING
+#error "motionGloveSDK_version.h 未定义 MOTIONGLOVE_SDK_VER_STRING，版本资源无法生成"
+#endif
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION MOTIONGLOVE_SDK_VER_MAJOR,MOTIONGLOVE_SDK_VER_MINOR,MOTIONGLOVE_SDK_VER_PATCH,0
+ PRODUCTVERSION MOTIONGLOVE_SDK_VER_MAJOR,MOTIONGLOVE_SDK_VER_MINOR,MOTIONGLOVE_SDK_VER_PATCH,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS VS_FF_DEBUG
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_DLL
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "FOHEART MOTION CAPTURE"
+            VALUE "FileDescription", "MotionGloveSDK - motion capture glove SDK"
+            VALUE "FileVersion", MOTIONGLOVE_SDK_VER_STRING
+            VALUE "InternalName", "MotionGloveSDK"
+            VALUE "LegalCopyright", "Copyright (c) 2025 FOHEART MOTION CAPTURE"
+            VALUE "OriginalFilename", "MotionGloveSDK.dll"
+            VALUE "ProductName", "MotionGloveSDK"
+            VALUE "ProductVersion", MOTIONGLOVE_SDK_VER_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

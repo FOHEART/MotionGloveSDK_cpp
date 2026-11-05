@@ -1224,7 +1224,7 @@ int main(int argc, char* argv[])
 #endif
 
     printf("motionGloveSDK_example_vtk v%s: binding UDP 0.0.0.0:%d (all interfaces)\n",
-           MOTIONGLOVE_EXAMPLE_VERSION_STRING, kDefaultUdpPort);
+           MOTIONGLOVE_SDK_VER_STRING, kDefaultUdpPort);
     const int listenRet = MotionGloveSDK_ListenUDPPort(kDefaultUdpPort);
     if (listenRet != 0)
     {

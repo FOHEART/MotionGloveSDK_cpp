@@ -28,7 +28,7 @@ std::string sdkVersionString()
 
 std::string cliVersionString()
 {
-	return MOTIONGLOVE_EXAMPLE_VERSION_STRING;
+	return MOTIONGLOVE_SDK_VER_STRING;
 }
 
 } // namespace mgcli
