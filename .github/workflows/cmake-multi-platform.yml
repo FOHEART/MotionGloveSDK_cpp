@@ -272,7 +272,7 @@ jobs:
         run: |
           where code >nul 2>nul
           if errorlevel 1 (
-              cmd /c scripts\open_in_vscode.bat
+              cmd /c open_in_vscode.bat
               if not errorlevel 1 exit /b 1
               verify >nul
               echo [OK] open_in_vscode missing-code branch returned 1

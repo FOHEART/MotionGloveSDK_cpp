@@ -48,7 +48,8 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 │   ├── package.bat                    # 源码分发包 → out/pack（Linux 需 pwsh）
 │   ├── gen_docs.bat                   # Doxygen HTML，告警日志 → out/doxygen
 │   ├── git_pull_latest.bat            # 拉取最新代码（Win 双击 / Linux sh）
-│   └── open_in_vscode.bat             # 用 VSCode 打开工程（Win 双击 / Linux sh）
+│   └── lib/
+│       └── sync_agent_harness.bat     # 内部子脚本：deploy 调用，同步 agent-harness + SKILL.md
 │
 ├── cli/                               # 无头 CLI 子工程（motionGloveSDK_cli，无 GUI 依赖）
 │   ├── main.cpp                       # 命令分发 + REPL（--json 统一信封）
@@ -73,8 +74,8 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 │   ├── pack/                          # 源码分发包 ZIP
 │   └── doxygen/                       # Doxygen 告警日志
 │
-├── [Windows]build_vs2022.bat          # 兼容入口 → scripts/build.bat 2022
-├── [Windows]build_vs2026.bat          # 兼容入口 → scripts/build.bat 2026
+├── buildDeploy.bat                    # 双击一键全流程：清 out → 编译部署 → 测试 → 文档 → 打包
+├── open_in_vscode.bat                 # 用 VSCode 打开工程（Win 双击 / Linux sh）
 └── [Linux]build.sh                    # 兼容入口 → scripts/build.bat
 ```
 
@@ -95,27 +96,27 @@ MotionGloveSDK/                        # 仓库根目录（只放源码、脚本
 | `scripts\package.bat` | 打源码分发包（`out\pack`） |
 | `scripts\gen_docs.bat` | 生成 Doxygen HTML，告警日志写 `out\doxygen` |
 | `scripts\git_pull_latest.bat` | 拉取最新代码：Windows 双击 / `cmd`，Linux 用 `sh` 运行同一文件；执行完立即退出、不等待按键 |
-| `scripts\open_in_vscode.bat` | 用 VSCode 打开工程：同样是 Windows / Linux 通用的一份文件 |
+| `open_in_vscode.bat`（工程根目录） | 用 VSCode 打开工程：同样是 Windows / Linux 通用的一份文件 |
 
-根目录的 `[Windows]build_vs2022.bat` / `[Windows]build_vs2026.bat` 是双击用的兼容入口，
-内部调用 `scripts\build.bat`。
+根目录的 `buildDeploy.bat` 是双击一键全流程入口：先用 `vswhere`（不可用时探测 MSBuild 目录）
+检测本机安装的 Visual Studio（2022 / 2026，含 Insiders/Preview），然后依次执行
+**清理旧 out\ → 编译+安装+部署 → 单元测试 → Doxygen 文档 → 源码打包**。只检测到一套工具链时
+打印 3→2→1 倒计时直接开始（Ctrl+C 可取消）；检测到多套才弹出菜单选择；命令行已指定版本时
+（`buildDeploy.bat 2022` / `buildDeploy.bat 2026`）跳过检测直接开始。
 
-`scripts/` 下的脚本（`.bat` 与 `.cmd` 由 cmd 用同一解释器执行，这里统一用 `.bat`）全部是
-cmd + POSIX sh 双解释器：cmd 把首行当标签忽略后执行批处理段，`sh` 则由首行 `exec` 取出
+`scripts/` 下的脚本与根目录的 `open_in_vscode.bat` 全部是 cmd + POSIX sh 双解释器
+（bat 与 cmd 由 cmd 用同一解释器执行，这里统一用 .bat 后缀）：cmd 把首行当标签忽略后执行批处理段，`sh` 则由首行 `exec` 取出
 `#__SH__` 标记之后的 POSIX 段、去掉 CR 后重新执行。Windows 直接双击或从 `cmd` 运行；
 Linux 用 `sh scripts/build.bat`、`sh scripts/test.bat` 这样调用（`[Linux]build.sh` 只是前者的兼容入口）。
 打包脚本在 Linux 下复用同一份 PowerShell 实现，需要先安装 PowerShell 7（`pwsh`）。
 
-**Windows（Visual Studio 2022）**
+**Windows（Visual Studio 2022 / 2026）**
 
-```
-双击运行 [Windows]build_vs2022.bat
-```
-
-**Windows（Visual Studio 2026）**
-
-```
-双击运行 [Windows]build_vs2026.bat
+```console
+:: 双击运行根目录 buildDeploy.bat，或命令行：
+buildDeploy.bat              :: 检测工具链（1 套倒计时直跑 / 多套弹菜单），一键全流程
+buildDeploy.bat 2022         :: 指定 VS 2022，Debug + Release 全流程
+buildDeploy.bat 2026 Release :: 指定 VS 2026，只构建 Release
 ```
 
 **Linux / Ubuntu**
@@ -213,13 +214,13 @@ cmake --install out/build/x64-Release --prefix out/install/x64-Release
 窗口里原点处绘制了三色坐标轴（X 红 / Y 绿 / Z 蓝）与 XZ 平面的地平面网格
 （格距 0.1 m，范围 50 cm × 50 cm），作为位置参考。
 
-**默认开启**：`BUILD_VTK_EXAMPLE` 默认为 `ON`，找到 VTK 9.x 就一起编译；
+**默认开启**： `BUILD_VTK_EXAMPLE` 默认为 `ON`，找到 VTK 9.x 就一起编译；
 没装 VTK 时 CMake 会打印警告并自动跳过该示例，其余目标照常构建。
-不想编译它可显式关闭：`-DBUILD_VTK_EXAMPLE=OFF`。
+不想编译它可显式关闭： `-DBUILD_VTK_EXAMPLE=OFF`。
 
 **一键脚本会自动处理 VTK**
 
-`[Windows]build_vs2022.bat` / `[Windows]build_vs2026.bat` 会调用 [tools/setup_vtk.bat](./tools/setup_vtk.bat)：
+一键构建入口（根目录 `buildDeploy.bat` 或 `scripts\build.bat`）会调用 [tools/setup_vtk.bat](./tools/setup_vtk.bat)：
 
 1. 若环境变量 `VTK_DIR` 指向可用的 VTK，或仓库下 `third_party\vtk` 已装好 VTK，直接复用；
 2. 否则用 conda-forge 的预编译 VTK（默认清华镜像）自动装到 `third_party\vtk`，
@@ -249,7 +250,7 @@ conda-forge 的 `vtk` 元包会连带拉下 python 绑定、Qt6、boost 头文�
 
 ```console
 set VTK_FORCE_REINSTALL=1
-[Windows]build_vs2022.bat
+build.bat
 ```
 
 `tools\setup_vtk.bat` 支持的环境变量（均可不设）：
@@ -325,7 +326,7 @@ cmake --build out/build/x64-Release --config Release
 `CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT` 判断），命令行脚本则按配置装到
 `out/install/x64-<配置>/`。
 
-一键构建脚本（`[Windows]build_vs2022.bat` / `[Windows]build_vs2026.bat`）还会把示例程序和
+一键构建脚本（根目录 `buildDeploy.bat` / `scripts\build.bat`）还会把示例程序和
 它们依赖的 DLL 汇总到 `out/install_example/`，按配置分开存放：
 
 ```
@@ -351,15 +352,15 @@ motionGloveSDK_cli export --frames 60 --timeout-ms 5000 --output out/cap.csv
 
 - 全部命令支持 `--json`，stdout 只输出一行统一信封 `{"ok","code","message","data"}`；
   SDK 诊断日志改道 stderr，进程退出码只区分 0/1（细分错误码在信封 `code` 里）。
-- 命令：`status` / `config show|set|clear` / `run`（别名 `listen`/`capture`）/ `export` / `version` / `help`；
+- 命令： `status` / `config show|set|clear` / `run`（别名 `listen`/`capture`）/ `export` / `version` / `help`；
   无参数启动进入 REPL（`exit`/`help`/`json on|off`，兼容带 BOM 的管道输入）。
 - 会话默认值存 `%TEMP%\motionglove-cli\session.json`，优先级：命令行 > 会话 > 内置默认（5001 / Glove1）。
 - `scripts\deploy.bat` 会把 `motionGloveSDK_cli.exe`、`SKILL.md` 与 `agent-harness\` 一起汇总到
   `out\install_example\x64-<配置>\`；harness 靠相对位置自动定位同级 exe。
-- 无硬件验证：`python tools\mock_glove_sender.py --port 5001` 造帧，再用 `run`/`export` 收帧。
-- harness 测试：`pip install -e agent-harness` 后 `pytest agent-harness`（没有构建产物时 e2e 自动 skip）。
+- 无硬件验证： `python tools\mock_glove_sender.py --port 5001` 造帧，再用 `run`/`export` 收帧。
+- harness 测试： `pip install -e agent-harness` 后 `pytest agent-harness`（没有构建产物时 e2e 自动 skip）。
 
-完整命令表、`data` schema、错误码对照与示例见根目录 [SKILL.md](./SKILL.md)。
+完整命令表、`data` schema、错误码对照与示例见根目录 `SKILL.md`。
 
 ---
 
@@ -411,10 +412,10 @@ git push origin main v0.2.2
 `scripts\package.bat`（逻辑在 [tools/package_source.ps1](./tools/package_source.ps1)）把当前
 工作区打成 `out/pack/MotionGloveSDK_cpp_v<版本号>.zip`，版本号取自
 [motionGloveSDK_version.h](./MotionGloveSDK/include/motionGloveSDK_version.h)，
-也可命令行指定：`scripts\package.bat 0.2.2`。
+也可命令行指定： `scripts\package.bat 0.2.2`。
 
-压缩包内有一层顶层目录 `MotionGloveSDK_cpp_v<版本号>`，解压后可直接用
-`[Windows]build_vs2022.bat` 等脚本构建。
+压缩包内有一层顶层目录 `MotionGloveSDK_cpp_v<版本号>`，解压后可直接用根目录
+`buildDeploy.bat` 等脚本构建。
 
 **预编译产物（`preBuild/`）**：若打包前跑过一键构建脚本，`out/install` 与 `out/install_example`
 会被原样放进包内，客户解压即得可直接运行的示例，不必自己装 VTK / 配工具链：
@@ -436,13 +437,13 @@ MotionGloveSDK_cpp_v<版本号>/
 
 为保证客户拿到的是“只读源码”，打包时会剔除：
 
-| 类别 | 内容 |
-| --- | --- |
-| 版本控制 | `.git/`（客户拿不到仓库地址与历史，无法 pull 你的代码）、`.gitignore` |
-| git 操作脚本 | `scripts\git_pull_latest.bat`（cmd / sh 双解释器），以及 README 里对应的说明 |
-| 内部资料 | `.github/`（CI 与 agent 配置）、`openspec/`、`docs/superpowers/`、`.vscode/` |
-| 构建产物 | `out/`（`out/build`、`out/pack/staging` 暂存目录等；`out/install`、`out/install_example` 只以 `preBuild/` 形式进包）、`third_party/`（自动装的 VTK）、`docs/html`、`*.zip`、`*.log`；历史遗留的根目录 `build/` 若存在也一并剔除 |
-| 本机专用 | `tools/autotools_env.bat`、打包脚本自身 |
+- 版本控制：剔除 `.git/` 与 `.gitignore`（客户拿不到仓库地址与历史，无法 pull 你的代码）
+- git 操作脚本：剔除 `scripts\git_pull_latest.bat` 以及 README 里对应的说明（cmd / sh 双解释器）
+- 内部资料：剔除 .github/、openspec/、docs/superpowers/、.vscode/（CI 与 agent 配置等）
+- 构建产物：剔除 out/、third_party/、docs/html、*.zip、*.log 与历史遗留的根目录 build/
+  （若存在也一并剔除；其中 out/install、out/install_example 只以 preBuild/ 形式进包，
+  out/build、out/pack/staging 暂存目录不进包）
+- 本机专用：剔除 tools/autotools_env.bat 与打包脚本自身
 
 脚本打完包会自检：一旦发现残留的 `.git` 目录、git 操作脚本或脚本里的
 `git fetch/pull/clone` 命令，直接报错退出，避免内部信息被打进客户包。
@@ -454,7 +455,7 @@ MotionGloveSDK_cpp_v<版本号>/
 ## 注意事项
 
 - Linux 脚本存储在 VMware hgfs 共享文件夹时，`make` 可能输出时钟偏差警告（`文件修改时间在未来`），这是宿主机与虚拟机时钟差异导致的，**不影响构建结果**，可忽略。
-- Linux 脚本需要有执行权限：`chmod +x "[Linux]build.sh"`
+- Linux 脚本需要有执行权限： `chmod +x "[Linux]build.sh"`
 
 ---
 
@@ -597,7 +598,7 @@ SDK 绑定的是 `0.0.0.0:<端口>`（本机全部网卡），所以"收不到"�
      "发给别的机器"的包，这类包协议栈会直接丢弃，SDK 永远收不到。
 3. **Windows 防火墙（现场最常见原因）**：Wireshark（Npcap）在防火墙之前抓包，报文被防火墙丢弃时照样能看到，
    而 SDK 的 socket 一个包都收不到（诊断日志里没有 `[info]`）。
-   - 一键放行（管理员命令行）：`tools\add_firewall_rule.bat 5001`
+   - 一键放行（管理员命令行）： `tools\add_firewall_rule.bat 5001`
    - 等价手工命令：
 
      ```bat

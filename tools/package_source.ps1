@@ -164,7 +164,7 @@ if ($SkipPreBuild) {
     foreach ($item in $preBuildItems) {
         if (-not (Test-Path -LiteralPath $item.Source)) {
             Write-Host "  [WARN] 未找到 $($item.Source)，包内不含 preBuild\$($item.Name)" -ForegroundColor Yellow
-            Write-Host "         需要时先运行 [Windows]build_vs2022.bat 生成，再用 -SkipPreBuild 可跳过本步" -ForegroundColor Yellow
+            Write-Host "         需要时先运行根目录 buildDeploy.bat 生成，再用 -SkipPreBuild 可跳过本步" -ForegroundColor Yellow
             continue
         }
         $dst = Join-Path $preBuildRoot $item.Name

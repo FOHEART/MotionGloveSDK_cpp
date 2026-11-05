@@ -28,13 +28,13 @@
  *
  * 命令行参数：
  *   --self-test           只执行初始化（UDP 绑定 + 场景搭建）后退出，用于 CI 启动自检。
- *   --headless <秒>       不开窗口，只按 ~60Hz 取帧并打印诊断日志（验证数据链路）。
- *   --render-check <秒>   离屏渲染自检：不弹窗，每秒存一张 PNG 到 --render-out 目录，
+ *   --headless &lt;秒&gt;       不开窗口，只按 ~60Hz 取帧并打印诊断日志（验证数据链路）。
+ *   --render-check &lt;秒&gt;   离屏渲染自检：不弹窗，每秒存一张 PNG 到 --render-out 目录，
  *                         用于客观验证"数据在变、画面也在变"。
- *   --render-out <目录>   render-check 的 PNG 输出目录（默认当前目录）。
- *   --dump <文件>         把收到的原始 32 段帧写成 CSV（fn + 32 x [pos xyz + quat xyzw]），
+ *   --render-out &lt;目录&gt;   render-check 的 PNG 输出目录（默认当前目录）。
+ *   --dump &lt;文件&gt;         把收到的原始 32 段帧写成 CSV（fn + 32 x [pos xyz + quat xyzw]），
  *                         用于离线核对姿态与位置的参考系（默认导出 300 帧）。
- *   --dump-frames <n>     --dump 的最大导出帧数。
+ *   --dump-frames &lt;n&gt;     --dump 的最大导出帧数。
  */
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -298,7 +298,7 @@ static void RotateVectorByQuaternion(const double q[4], const double v[3], doubl
  * @brief 计算 32 段骨骼格式下虚拟指尖末端的位置。
  * @details 指尖末节骨骼的**朝向由第三段骨骼的姿态决定**：把骨骼静止轴向（局部 +Y）
  *          用第三段的全局四元数旋转，得到末节骨骼方向，再沿该方向延伸固定长度
- *          #kVirtualTipLengthMeter。这样末节与上一节不再共线（不再是"沿上一节直接延长"），
+ *          %kVirtualTipLengthMeter。这样末节与上一节不再共线（不再是"沿上一节直接延长"），
  *          与 Python 版 compute_frame_pose() 的处理完全一致。
  *          没有有效姿态数据（未开启姿态输出 / 四元数非法）时，退化为沿 P2→P3 方向延伸，
  *          保证仍能画出指尖。
@@ -913,7 +913,13 @@ private:
             this->PortOpened ? 1.00 : 0.35);
     }
 
-    /** @brief 写入一个骨骼点：位置全零时用默认布局，同时记录到坐标缓存。 */    void ApplyJointPosition(int slot, const float positionMeter[3], bool allZeroPositions)
+    /**
+     * @brief 写入一个骨骼点：位置全零时用默认布局，同时记录到坐标缓存。
+     * @param slot [in] 关节槽位（0-41）。
+     * @param positionMeter [in] 关节全局位置（米，xyz）。
+     * @param allZeroPositions [in] 本帧全部位置为零时为 true，用静态默认布局兜底。
+     */
+    void ApplyJointPosition(int slot, const float positionMeter[3], bool allZeroPositions)
     {
         double x = static_cast<double>(positionMeter[0]);
         double y = static_cast<double>(positionMeter[1]);
@@ -1050,7 +1056,11 @@ private:
         }
     }
 
-    /** @brief 骨骼格式变化时打印一次说明，避免每帧刷屏。 */
+    /**
+     * @brief 骨骼格式变化时打印一次说明，避免每帧刷屏。
+     * @param formatTag [in] 当前格式标识（变化检测用）。
+     * @param message [in] 要打印的说明文字。
+     */
     void ReportFormatOnce(const char* formatTag, const char* message)
     {
         if (this->LastFormatTag == formatTag)

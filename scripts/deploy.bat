@@ -66,7 +66,7 @@ for %%F in ("%EXAMPLES%\*.dll") do set /a DLL_COUNT+=1
 echo      %EXAMPLES%：!EXE_COUNT! 个可执行文件，!DLL_COUNT! 个 DLL
 
 REM CLI-Anything：把 agent-harness + SKILL.md 同步到可运行目录（失败只告警）
-call "%~dp0sync_agent_harness.bat" "%EXAMPLES%"
+call "%~dp0lib\sync_agent_harness.bat" "%EXAMPLES%"
 if errorlevel 1 echo [WARN] agent harness 同步失败，CLI 仍可单独使用。
 exit /b 0
 
@@ -130,5 +130,5 @@ echo "     $EXAMPLES：$count 个可执行文件，$(find "$EXAMPLES" -name '*.s
 echo "     运行前可执行：export LD_LIBRARY_PATH=\"\$PWD\""
 
 # CLI-Anything：同步 agent-harness + SKILL.md（失败只告警）
-sh "$(dirname "$0")/sync_agent_harness.bat" "$EXAMPLES" \
+sh "$(dirname "$0")/lib/sync_agent_harness.bat" "$EXAMPLES" \
     || echo "[WARN] agent harness 同步失败，CLI 仍可单独使用。"

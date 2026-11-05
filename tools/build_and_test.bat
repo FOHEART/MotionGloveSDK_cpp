@@ -1,4 +1,7 @@
 @echo off
+chcp 65001 >nul
+REM  chcp 必须在任何中文（多字节）内容之前执行：cmd 切换代码页会重定位批处理读取位置，
+REM  若前面已有多字节内容，切换后可能错位跳行（本地与 CI 初始代码页不同，症状不稳定）。
 REM ============================================================================
 REM  build_and_test.bat  --  MotionGloveSDK 单元测试：配置 + 构建 + ctest
 REM
@@ -11,7 +14,6 @@ REM  说明：先加载 VS2022 开发环境（vcvars64），否则 cmake 找不�
 REM        构建目录固定 out\build\tdd-tests，与 scripts\build.bat 的 out\build\x64-* 隔离。
 REM ============================================================================
 setlocal enabledelayedexpansion
-chcp 65001 >nul
 
 set "ROOT=%~dp0.."
 set "VSDEV=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"

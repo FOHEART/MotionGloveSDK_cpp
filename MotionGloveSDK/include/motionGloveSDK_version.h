@@ -24,7 +24,9 @@
 /** @brief 修订号。 */
 #define MOTIONGLOVE_SDK_VER_PATCH 1
 
+/** @brief 内部辅助宏：把参数字符串化（不带扩展的两段式写法）。 */
 #define MOTIONGLOVE_SDK_VER_STRINGIZE_(x) #x
+/** @brief 把 MOTIONGLOVE_SDK_VER_MAJOR 等宏展开后的数值转成字符串字面量。 */
 #define MOTIONGLOVE_SDK_VER_STRINGIZE(x) MOTIONGLOVE_SDK_VER_STRINGIZE_(x)
 
 /** @brief 版本号字符串，形如 "0.2.1"。 */
